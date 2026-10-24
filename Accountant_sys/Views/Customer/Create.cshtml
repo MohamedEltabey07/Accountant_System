@@ -1,0 +1,41 @@
+@model BLL.DTOs.Customer.InComingData.CreateCustomerDto
+@{
+    ViewData["Title"] = "عميل جديد";
+}
+
+<h4 class="mb-3"><i class="bi bi-plus-lg me-2"></i> عميل جديد</h4>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+        <form asp-action="Create" method="post">
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">اسم العميل</label>
+                <input asp-for="Name" class="form-control" placeholder="أدخل اسم العميل" />
+                <span asp-validation-for="Name" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="PhoneNumber" class="form-label">رقم الهاتف</label>
+                <input asp-for="PhoneNumber" class="form-control" type="tel" placeholder="01xxxxxxxxx" />
+                <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Address" class="form-label">العنوان</label>
+                <input asp-for="Address" class="form-control" placeholder="أدخل العنوان" />
+                <span asp-validation-for="Address" class="text-danger small"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-lg me-1"></i> حفظ
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary">رجوع</a>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

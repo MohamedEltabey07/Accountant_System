@@ -1,0 +1,48 @@
+@model BLL.DTOs.Vendor.InComingData.CreateVendorDto
+@{
+    ViewData["Title"] = "إضافة مورد جديد";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-truck me-2"></i> إضافة مورد جديد</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-right me-1"></i> رجوع للقائمة
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+        <form asp-action="Create" method="post">
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">اسم المورد <span class="text-danger">*</span></label>
+                <input asp-for="Name" class="form-control" placeholder="أدخل اسم المورد أو الشركة" autofocus />
+                <span asp-validation-for="Name" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="PhoneNumber" class="form-label">رقم الهاتف</label>
+                <input asp-for="PhoneNumber" class="form-control" type="tel" placeholder="01xxxxxxxxx" />
+                <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Address" class="form-label">العنوان</label>
+                <input asp-for="Address" class="form-control" placeholder="أدخل عنوان المورد أو المخزن" />
+                <span asp-validation-for="Address" class="text-danger small"></span>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg me-1"></i> حفظ المورد
+                </button>
+                <a asp-action="Index" class="btn btn-outline-secondary">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

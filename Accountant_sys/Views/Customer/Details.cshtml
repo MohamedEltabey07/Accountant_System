@@ -1,0 +1,134 @@
+@model BLL.DTOs.Customer.OutGoingData.CustomerDto
+@{
+    ViewData["Title"] = "تفاصيل العميل - " + Model.Name;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-person-badge me-2"></i> تفاصيل العميل</h4>
+    <div>
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+            <i class="bi bi-pencil me-1"></i> تعديل
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-right me-1"></i> رجوع للقائمة
+        </a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Basic Info Card -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 text-primary">
+                    <i class="bi bi-info-circle me-1"></i> البيانات الشخصية والاتصال
+                </h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0 gy-3">
+                    <dt class="col-sm-4 text-muted">كود العميل</dt>
+                    <dd class="col-sm-8 fw-semibold">#@Model.Id</dd>
+
+                    <dt class="col-sm-4 text-muted">اسم العميل</dt>
+                    <dd class="col-sm-8 fw-bold fs-5">@Model.Name</dd>
+
+                    <dt class="col-sm-4 text-muted">رقم الهاتف</dt>
+                    <dd class="col-sm-8">
+                        @if (!string.IsNullOrEmpty(Model.PhoneNumber))
+                        {
+                            <a href="tel:@Model.PhoneNumber" class="text-decoration-none">
+                                <i class="bi bi-telephone me-1"></i> @Model.PhoneNumber
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="text-muted">غير مسجل</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4 text-muted">العنوان</dt>
+                    <dd class="col-sm-8">@(string.IsNullOrEmpty(Model.Address) ? "غير مسجل" : Model.Address)</dd>
+
+                    <dt class="col-sm-4 text-muted">الحالة</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge bg-success-subtle text-success border border-success px-2 py-1">
+                                <i class="bi bi-check-circle me-1"></i> نشط
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1">
+                                <i class="bi bi-slash-circle me-1"></i> معطل
+                            </span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4 text-muted">تاريخ التسجيل</dt>
+                    <dd class="col-sm-8">@Model.CreatedAt.ToString("yyyy/MM/dd - hh:mm tt")</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Balance Card -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100 border-0">
+            <div class="card-body p-4 text-center d-flex flex-column justify-content-between rounded @(Model.CurrentBalance > 0 ? "bg-danger-subtle text-danger-emphasis border border-danger" : (Model.CurrentBalance < 0 ? "bg-info-subtle text-info-emphasis border border-info" : "bg-success-subtle text-success-emphasis border border-success"))">
+                <div>
+                    <div class="fs-1 mb-2">
+                        @if (Model.CurrentBalance > 0)
+                        {
+                            <i class="bi bi-exclamation-circle text-danger"></i>
+                        }
+                        else if (Model.CurrentBalance < 0)
+                        {
+                            <i class="bi bi-arrow-down-left-circle text-info"></i>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check2-circle text-success"></i>
+                        }
+                    </div>
+                    <h5 class="fw-bold mb-1">الرصيد المالي الحالي</h5>
+                    <small class="text-muted d-block mb-3">محسوب بدقة من واقع الفواتير المرحلة والمدفوعات والمرتجعات</small>
+
+                    <div class="display-6 fw-bold mb-2">
+                        @Model.CurrentBalance.ToString("N2") <small class="fs-6">ج.م</small>
+                    </div>
+
+                    <div>
+                        @if (Model.CurrentBalance > 0)
+                        {
+                            <span class="badge bg-danger fs-6 px-3 py-2">
+                                <i class="bi bi-arrow-up-right me-1"></i> مدين (مستحق على العميل للمحل)
+                            </span>
+                        }
+                        else if (Model.CurrentBalance < 0)
+                        {
+                            <span class="badge bg-info text-dark fs-6 px-3 py-2">
+                                <i class="bi bi-arrow-down-left me-1"></i> دائن (رصيد لصالح العميل / دفعة مقدمة)
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success fs-6 px-3 py-2">
+                                <i class="bi bi-check-lg me-1"></i> خالص (لا توجد مديونية)
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-top border-white-50">
+                    <a asp-controller="Invoice" asp-action="Create" asp-route-customerId="@Model.Id" class="btn btn-outline-dark btn-sm w-100 mb-2">
+                        <i class="bi bi-plus-circle me-1"></i> إنشاء فاتورة جملة جديدة
+                    </a>
+                    <a asp-controller="Invoice" asp-action="Index" asp-route-type="WholesaleSales" class="btn btn-link btn-sm text-decoration-none">
+                        <i class="bi bi-receipt me-1"></i> استعراض فواتير العميل
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,73 @@
+@model List<BLL.DTOs.Product.OutGoingData.ProductDto>
+@{
+    ViewData["Title"] = "المنتجات";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-box-seam me-2"></i> المنتجات</h4>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> منتج جديد
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        @if (Model.Count == 0)
+        {
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                لا توجد منتجات بعد. أضف أول منتج للبدء.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>اسم المنتج</th>
+                            <th>سعر الشراء</th>
+                            <th>سعر الجملة</th>
+                            <th>سعر التجزئة</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var product in Model)
+                        {
+                            <tr>
+                                <td>@product.Id</td>
+                                <td class="fw-bold">@product.Name</td>
+                                <td>@product.PurchasePrice.ToString("N2")</td>
+                                <td>@product.WholesalePrice.ToString("N2")</td>
+                                <td>@product.RetailPrice.ToString("N2")</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a asp-action="Details" asp-route-id="@product.Id" class="btn btn-outline-info" title="تفاصيل">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a asp-action="Edit" asp-route-id="@product.Id" class="btn btn-outline-warning" title="تعديل">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form asp-action="ToggleStatus" asp-route-id="@product.Id" method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-secondary" title="تمييز/إلغاء التنشيط">
+                                                <i class="bi bi-arrow-repeat"></i>
+                                            </button>
+                                        </form>
+                                        <form asp-action="Delete" asp-route-id="@product.Id" method="post" class="d-inline"
+                                              onsubmit="return confirm('هل تريد إلغاء تنشيط هذا المنتج؟');">
+                                            <button type="submit" class="btn btn-outline-danger" title="إلغاء التنشيط">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

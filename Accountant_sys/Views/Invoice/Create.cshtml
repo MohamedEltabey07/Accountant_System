@@ -1,0 +1,137 @@
+@model BLL.DTOs.Invoice.InComingData.CreateInvoiceDraftDto
+@using DAL.Enums
+@{
+    ViewData["Title"] = "إنشاء مسودة فاتورة";
+    var defaultDate = Model != null && Model.TransactionDate != default ? Model.TransactionDate.ToString("yyyy-MM-dd") : DateTime.Today.ToString("yyyy-MM-dd");
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-file-earmark-plus me-2"></i> إنشاء مسودة فاتورة جديدة</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-right me-1"></i> رجوع لقائمة الفواتير
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 text-primary">
+                    <i class="bi bi-sliders me-1"></i> الخطوة 1: البيانات الأساسية ونوع الفاتورة
+                </h5>
+                <small class="text-muted">بعد إنشاء المسودة ستتمكن من إضافة البنود والكميات والأسعار</small>
+            </div>
+            <div class="card-body">
+                <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                <form asp-action="Create" method="post" id="invoiceCreateForm">
+                    <!-- Invoice Type -->
+                    <div class="mb-3">
+                        <label asp-for="Type" class="form-label fw-bold">نوع الفاتورة <span class="text-danger">*</span></label>
+                        <select asp-for="Type" class="form-select form-select-lg" id="invoiceTypeSelect">
+                            <option value="@((int)InvoiceType.WholesaleSales)">مبيعات جملة (تتطلب عميل)</option>
+                            <option value="@((int)InvoiceType.VendorPurchase)">مشتريات من مورد (تتطلب مورد)</option>
+                            <option value="@((int)InvoiceType.StoreCashSales)">مبيعات تجزئة نقدي (بدون طرف)</option>
+                        </select>
+                        <span asp-validation-for="Type" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Transaction Date -->
+                    <div class="mb-3">
+                        <label asp-for="TransactionDate" class="form-label fw-bold">تاريخ المعاملة <span class="text-danger">*</span></label>
+                        <input asp-for="TransactionDate" type="date" class="form-control" value="@defaultDate" />
+                        <span asp-validation-for="TransactionDate" class="text-danger small"></span>
+                    </div>
+
+                    <!-- Customer Selector (Wholesale) -->
+                    <div class="mb-3" id="customerGroup">
+                        <label asp-for="CustomerId" class="form-label fw-bold">العميل <span class="text-danger">*</span></label>
+                        <select asp-for="CustomerId" class="form-select" asp-items="ViewBag.Customers">
+                            <option value="">-- اختر العميل --</option>
+                        </select>
+                        <span asp-validation-for="CustomerId" class="text-danger small"></span>
+                        <div class="form-text">فواتير مبيعات الجملة يتم ترحيلها إلى حساب العميل المختار.</div>
+                    </div>
+
+                    <!-- Vendor Selector (Purchase) -->
+                    <div class="mb-3" id="vendorGroup" style="display:none;">
+                        <label asp-for="VendorId" class="form-label fw-bold">المورد <span class="text-danger">*</span></label>
+                        <select asp-for="VendorId" class="form-select" asp-items="ViewBag.Vendors">
+                            <option value="">-- اختر المورد --</option>
+                        </select>
+                        <span asp-validation-for="VendorId" class="text-danger small"></span>
+                        <div class="form-text">فواتير المشتريات تزيد من رصيد المورد المستحق.</div>
+                    </div>
+
+                    <!-- Retail Note (Cash) -->
+                    <div class="alert alert-info py-2" id="retailNote" style="display:none;">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        مبيعات التجزئة النقدية تتم مباشرة للزبائن ولا ترتبط بحساب عميل آجل.
+                    </div>
+
+                    <!-- Invoice-level Discount -->
+                    <div class="mb-3">
+                        <label asp-for="InvoiceDiscountAmount" class="form-label fw-bold">خصم إضافي على الفاتورة (ج.م)</label>
+                        <div class="input-group">
+                            <input asp-for="InvoiceDiscountAmount" type="number" step="0.01" min="0" class="form-control" value="0.00" />
+                            <span class="input-group-text">ج.م</span>
+                        </div>
+                        <span asp-validation-for="InvoiceDiscountAmount" class="text-danger small"></span>
+                        <div class="form-text">خصم عام على إجمالي الفاتورة (بخلاف خصم كل بند).</div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-3">
+                        <label asp-for="Notes" class="form-label fw-bold">ملاحظات الفاتورة</label>
+                        <textarea asp-for="Notes" class="form-control" rows="2" placeholder="أي تفاصيل أو شروط خاصة..."></textarea>
+                        <span asp-validation-for="Notes" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top d-flex justify-content-between">
+                        <a asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg me-1"></i> إلغاء
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-arrow-left me-1"></i> إنشاء المسودة وإضافة البنود
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function updatePartyFields() {
+            var selectedType = parseInt($('#invoiceTypeSelect').val());
+            var vendorPurchase = @((int)InvoiceType.VendorPurchase);
+            var wholesaleSales = @((int)InvoiceType.WholesaleSales);
+            var storeCashSales = @((int)InvoiceType.StoreCashSales);
+
+            if (selectedType === vendorPurchase) {
+                $('#vendorGroup').show();
+                $('#customerGroup').hide();
+                $('#retailNote').hide();
+                $('#CustomerId').val('');
+            } else if (selectedType === wholesaleSales) {
+                $('#customerGroup').show();
+                $('#vendorGroup').hide();
+                $('#retailNote').hide();
+                $('#VendorId').val('');
+            } else {
+                $('#customerGroup').hide();
+                $('#vendorGroup').hide();
+                $('#retailNote').show();
+                $('#CustomerId').val('');
+                $('#VendorId').val('');
+            }
+        }
+
+        $(document).ready(function() {
+            updatePartyFields();
+            $('#invoiceTypeSelect').on('change', updatePartyFields);
+        });
+    </script>
+}

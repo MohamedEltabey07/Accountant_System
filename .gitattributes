@@ -1,0 +1,38 @@
+# Set default behavior to automatically normalize line endings for all text files
+* text=auto
+
+# Explicitly declare text files
+*.cs text diff=csharp
+*.cshtml text
+*.css text
+*.min.css text
+*.js text
+*.min.js text
+*.json text
+*.xml text
+*.props text
+*.targets text
+*.sln text
+*.slnx text
+*.md text
+*.txt text
+*.html text
+*.htm text
+*.svg text
+*.map text
+
+# Explicitly declare binary files (do not touch line endings)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.dll binary
+*.exe binary
+*.pdb binary

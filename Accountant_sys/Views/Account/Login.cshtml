@@ -1,0 +1,59 @@
+@model BLL.DTOs.Auth.LoginDto
+@{
+    ViewData["Title"] = "تسجيل الدخول";
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+}
+
+<div class="logo-section">
+    <i class="bi bi-calculator-fill"></i>
+    <h2>نظام المحاسبة</h2>
+    <p>قم بتسجيل الدخول للوصول إلى حسابك</p>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+<form asp-action="Login" asp-controller="Account" method="post">
+    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+
+    <div class="mb-3">
+        <label asp-for="Email" class="form-label">
+            <i class="bi bi-envelope-fill me-1"></i> البريد الإلكتروني
+        </label>
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+            <input asp-for="Email" class="form-control" type="email"
+                   placeholder="أدخل البريد الإلكتروني" autofocus />
+        </div>
+        <span asp-validation-for="Email" class="text-danger small"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Password" class="form-label">
+            <i class="bi bi-lock-fill me-1"></i> كلمة المرور
+        </label>
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <input asp-for="Password" class="form-control" type="password"
+                   placeholder="أدخل كلمة المرور" />
+        </div>
+        <span asp-validation-for="Password" class="text-danger small"></span>
+    </div>
+
+    <div class="mb-3 form-check">
+        <input asp-for="RememberMe" class="form-check-input" type="checkbox" />
+        <label asp-for="RememberMe" class="form-check-label">تذكرني</label>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100">
+        <i class="bi bi-box-arrow-in-left me-1"></i> تسجيل الدخول
+    </button>
+</form>

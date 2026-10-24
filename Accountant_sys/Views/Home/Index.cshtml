@@ -1,0 +1,143 @@
+@{
+    ViewData["Title"] = "لوحة التحكم الرئيسية";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-speedometer2 text-primary me-2"></i> لوحة التحكم</h3>
+        <p class="text-muted mb-0">مرحباً بك في نظام إدارة الحسابات، المبيعات والمخازن</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="Invoice" asp-action="Create" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> فاتورة جديدة
+        </a>
+    </div>
+</div>
+
+<!-- Quick Navigation Cards -->
+<div class="row g-3 mb-4">
+    <!-- Products Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card shadow-sm h-100 border-0 border-start border-primary border-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small fw-bold">المنتجات والمخزون</span>
+                    <span class="badge bg-primary-subtle text-primary p-2 rounded-circle">
+                        <i class="bi bi-box-seam fs-5"></i>
+                    </span>
+                </div>
+                <h5 class="fw-bold mb-2">دليل المنتجات والأسعار</h5>
+                <p class="text-muted small mb-3">إدارة الأصناف، أسعار الشراء، الجملة، والتجزئة.</p>
+                <a asp-controller="Product" asp-action="Index" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-arrow-left me-1"></i> إدارة المنتجات
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customers Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card shadow-sm h-100 border-0 border-start border-success border-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small fw-bold">العملاء والمديونيات</span>
+                    <span class="badge bg-success-subtle text-success p-2 rounded-circle">
+                        <i class="bi bi-people-fill fs-5"></i>
+                    </span>
+                </div>
+                <h5 class="fw-bold mb-2">سجل العملاء</h5>
+                <p class="text-muted small mb-3">متابعة أرصدة العملاء، مديونيات الجملة، وحركات السداد.</p>
+                <a asp-controller="Customer" asp-action="Index" class="btn btn-sm btn-outline-success w-100">
+                    <i class="bi bi-arrow-left me-1"></i> استعراض العملاء
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendors Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card shadow-sm h-100 border-0 border-start border-warning border-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small fw-bold">الموردين والمشتريات</span>
+                    <span class="badge bg-warning-subtle text-warning p-2 rounded-circle">
+                        <i class="bi bi-truck fs-5"></i>
+                    </span>
+                </div>
+                <h5 class="fw-bold mb-2">سجل الموردين</h5>
+                <p class="text-muted small mb-3">متابعة حسابات الموردين، الأرصدة المستحقة، والدفعات.</p>
+                <a asp-controller="Vendor" asp-action="Index" class="btn btn-sm btn-outline-warning w-100">
+                    <i class="bi bi-arrow-left me-1"></i> استعراض الموردين
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoices Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card shadow-sm h-100 border-0 border-start border-info border-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small fw-bold">الفواتير والمبيعات</span>
+                    <span class="badge bg-info-subtle text-info p-2 rounded-circle">
+                        <i class="bi bi-receipt fs-5"></i>
+                    </span>
+                </div>
+                <h5 class="fw-bold mb-2">سجل الفواتير</h5>
+                <p class="text-muted small mb-3">المشتريات، مبيعات الجملة، ومبيعات التجزئة النقدية.</p>
+                <a asp-controller="Invoice" asp-action="Index" class="btn btn-sm btn-outline-info w-100">
+                    <i class="bi bi-arrow-left me-1"></i> استعراض الفواتير
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Operations Panel -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-3">
+        <h5 class="card-title mb-0 text-dark">
+            <i class="bi bi-lightning-charge text-warning me-1"></i> عمليات سريعة
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-sm-6 col-md-3">
+                <a asp-controller="Invoice" asp-action="Create" class="btn btn-outline-primary d-flex align-items-center justify-content-center p-3 w-100">
+                    <i class="bi bi-file-earmark-plus fs-4 me-2"></i>
+                    <div class="text-end">
+                        <div class="fw-bold">فاتورة مبيعات</div>
+                        <small class="text-muted">جملة أو تجزئة</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <a asp-controller="Invoice" asp-action="Create" class="btn btn-outline-secondary d-flex align-items-center justify-content-center p-3 w-100">
+                    <i class="bi bi-cart-plus fs-4 me-2"></i>
+                    <div class="text-end">
+                        <div class="fw-bold">فاتورة مشتريات</div>
+                        <small class="text-muted">تسجيل بضاعة مورد</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <a asp-controller="Customer" asp-action="Create" class="btn btn-outline-success d-flex align-items-center justify-content-center p-3 w-100">
+                    <i class="bi bi-person-plus fs-4 me-2"></i>
+                    <div class="text-end">
+                        <div class="fw-bold">عميل جديد</div>
+                        <small class="text-muted">إضافة عميل للسجل</small>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <a asp-controller="Product" asp-action="Create" class="btn btn-outline-info d-flex align-items-center justify-content-center p-3 w-100">
+                    <i class="bi bi-plus-square fs-4 me-2"></i>
+                    <div class="text-end">
+                        <div class="fw-bold">صنف جديد</div>
+                        <small class="text-muted">تسجيل منتج وأسعاره</small>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

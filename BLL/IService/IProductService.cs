@@ -1,0 +1,19 @@
+﻿using BLL.DTOs.Product.InComingData;
+using BLL.DTOs.Product.OutGoingData;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace BLL.IService
+{
+    public interface IProductService
+    {
+        public Task<List<ProductDto>> GetAllProductsAsync();
+        public Task<List<ProductDto>> GetActiveProductsAsync();
+        public Task<ProductDto?> GetProductByIdAsync(int id);
+        public Task<bool> UpdateProductAsync(UpdateProductDto dto);
+        public Task<bool> ToggleStatusAsync(int id);
+        public Task<bool> DeleteProductAsync(int id);
+        Task<bool> CreateProductAsync(CreateProductDto dto);
+    }
+}
