@@ -7,47 +7,77 @@
         <h3 class="fw-bold mb-1">
             <i class="bi bi-credit-card-2-front text-primary me-2"></i> حركة الخزينة والمدفوعات
         </h3>
-        <p class="text-muted mb-0">تسجيل وتوزيع دفعات وسندات القبض للعملاء وسندات الصرف للموردين</p>
+        <p class="text-muted mb-0">تسجيل وتوزيع دفعات وسندات القبض للعملاء وسندات الصرف للموردين ومصروفات التشغيل</p>
     </div>
     <div class="d-flex gap-2">
-        <a asp-controller="DailyClosing" asp-action="CloseDay" class="btn btn-outline-warning">
+        <a asp-action="Expense" class="btn btn-warning shadow-sm fw-bold">
+            <i class="bi bi-wallet2 me-1"></i> تسجيل مصروف
+        </a>
+        <a asp-controller="DailyClosing" asp-action="CloseDay" class="btn btn-outline-warning shadow-sm">
             <i class="bi bi-calendar-check me-1"></i> إقفال الوردية
         </a>
     </div>
 </div>
 
-<div class="row g-4 justify-content-center">
+<div class="row g-4">
     <!-- Customer Payment (Cash In) -->
-    <div class="col-md-6 col-lg-5">
+    <div class="col-md-4">
         <div class="card card-interactive h-100 border-0 border-top border-success border-4 shadow-sm">
-            <div class="card-body p-4 text-center">
-                <div class="p-3 bg-success-subtle text-success rounded-circle d-inline-flex mb-3">
-                    <i class="bi bi-cash-stack fs-1"></i>
+            <div class="card-body p-4 text-center d-flex flex-column justify-content-between">
+                <div>
+                    <div class="p-3 bg-success-subtle text-success rounded-circle d-inline-flex mb-3">
+                        <i class="bi bi-cash-stack fs-1"></i>
+                    </div>
+                    <h4 class="fw-bold text-dark mb-2">سند قبض عميل</h4>
+                    <span class="badge bg-success-subtle text-success mb-3">وارد نقدية (Cash In)</span>
+                    <p class="text-muted small mb-4">
+                        تسجيل دفعة نقدية مستلمة من عميل أو شركة بحرية وإيداعها في الخزينة مع توزيعها على الفواتير الآجلة المفتوحة وتحديث رصيد العميل.
+                    </p>
                 </div>
-                <h4 class="fw-bold text-dark mb-2">سند قبض عميل (وارد نقدية)</h4>
-                <p class="text-muted small mb-4">
-                    تسجيل دفعة نقدية مستلمة من عميل وإيداعها في الخزينة مع توزيعها تلقائياً أو يدوياً على الفواتير الآجلة المفتوحة وتحديث رصيد العميل.
-                </p>
                 <a asp-controller="Payment" asp-action="CustomerPayment" class="btn btn-success fw-bold px-4 shadow-sm w-100">
-                    <i class="bi bi-plus-lg me-1"></i> تسجيل سند قبض جديد
+                    <i class="bi bi-plus-lg me-1"></i> تسجيل سند قبض
                 </a>
             </div>
         </div>
     </div>
 
     <!-- Vendor Payment (Cash Out) -->
-    <div class="col-md-6 col-lg-5">
+    <div class="col-md-4">
         <div class="card card-interactive h-100 border-0 border-top border-danger border-4 shadow-sm">
-            <div class="card-body p-4 text-center">
-                <div class="p-3 bg-danger-subtle text-danger rounded-circle d-inline-flex mb-3">
-                    <i class="bi bi-wallet2 fs-1"></i>
+            <div class="card-body p-4 text-center d-flex flex-column justify-content-between">
+                <div>
+                    <div class="p-3 bg-danger-subtle text-danger rounded-circle d-inline-flex mb-3">
+                        <i class="bi bi-arrow-up-right-circle fs-1"></i>
+                    </div>
+                    <h4 class="fw-bold text-dark mb-2">سند صرف مورد</h4>
+                    <span class="badge bg-danger-subtle text-danger mb-3">منصرف نقدية (Cash Out)</span>
+                    <p class="text-muted small mb-4">
+                        صرف دفعة نقدية من الخزينة لمورد بضاعة وسداد فواتير المشتريات المعلقة لسداد الالتزامات وتخفيض رصيد المورد الدائن.
+                    </p>
                 </div>
-                <h4 class="fw-bold text-dark mb-2">سند صرف مورد (منصرف نقدية)</h4>
-                <p class="text-muted small mb-4">
-                    صرف دفعة نقدية من الخزينة لمورد بضاعة وتوزيعها على فواتير المشتريات المعلقة لسداد الالتزامات وتقليل رصيد المورد الدائن.
-                </p>
                 <a asp-controller="Payment" asp-action="VendorPayment" class="btn btn-danger fw-bold px-4 shadow-sm w-100">
-                    <i class="bi bi-plus-lg me-1"></i> تسجيل سند صرف جديد
+                    <i class="bi bi-plus-lg me-1"></i> تسجيل سند صرف مورد
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Operating Expense (Cash Out) -->
+    <div class="col-md-4">
+        <div class="card card-interactive h-100 border-0 border-top border-warning border-4 shadow-sm">
+            <div class="card-body p-4 text-center d-flex flex-column justify-content-between">
+                <div>
+                    <div class="p-3 bg-warning-subtle text-warning-emphasis rounded-circle d-inline-flex mb-3">
+                        <i class="bi bi-wallet2 fs-1"></i>
+                    </div>
+                    <h4 class="fw-bold text-dark mb-2">سند صرف مصروفات</h4>
+                    <span class="badge bg-warning-subtle text-warning-emphasis mb-3">منصرف تشغيل (Cash Out)</span>
+                    <p class="text-muted small mb-4">
+                        تسجيل منصرف نقدي من درج الخزينة لمصاريف التشغيل (إيجار، كهرباء، صيانة ثلاجات، مرتبات، بوفيه، نقل) وخصمها من اليومية.
+                    </p>
+                </div>
+                <a asp-controller="Payment" asp-action="Expense" class="btn btn-warning fw-bold px-4 shadow-sm w-100">
+                    <i class="bi bi-plus-lg me-1"></i> تسجيل صرف مصروف
                 </a>
             </div>
         </div>

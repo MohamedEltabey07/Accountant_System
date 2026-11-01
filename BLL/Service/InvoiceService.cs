@@ -142,10 +142,17 @@ namespace BLL.Service
             if (dto.Quantity <= 0)
                 throw new InvalidOperationException("الوزن المطلوب (كجم) يجب أن يكون أكبر من صفر.");
 
+            if (dto.LineDiscountAmount < 0)
+                throw new InvalidOperationException("قيمة خصم البند لا يمكن أن تكون سالبة.");
+
+            var gross = dto.Quantity * unitPrice.Value;
+            if (dto.LineDiscountAmount > gross)
+                throw new InvalidOperationException($"خصم البند ({dto.LineDiscountAmount:N2} ج.م) لا يمكن أن يتجاوز إجمالي قيمة البند ({gross:N2} ج.م).");
+
             var item = _mapper.Map<InvoiceItem>(dto);
             item.ProductName = product.Name;
             item.UnitPrice = unitPrice.Value;
-            item.LineTotal = (item.Quantity * item.UnitPrice) - item.LineDiscountAmount;
+            item.LineTotal = gross - dto.LineDiscountAmount;
 
             invoice.Items.Add(item);
 
@@ -161,10 +168,23 @@ namespace BLL.Service
             var item = await _unitOfWork.InvoiceRepo.GetItemWithInvoiceAsync(dto.ItemId);
             if (item == null || item.Invoice.Status != InvoiceStatus.Draft) return false;
 
+            if (dto.Quantity <= 0)
+                throw new InvalidOperationException("الكمية / الوزن يجب أن يكون أكبر من صفر.");
+
+            if (dto.UnitPrice < 0)
+                throw new InvalidOperationException("سعر الوحدة لا يمكن أن يكون سالباً.");
+
+            if (dto.LineDiscountAmount < 0)
+                throw new InvalidOperationException("قيمة خصم البند لا يمكن أن تكون سالبة.");
+
+            var gross = dto.Quantity * dto.UnitPrice;
+            if (dto.LineDiscountAmount > gross)
+                throw new InvalidOperationException($"خصم البند ({dto.LineDiscountAmount:N2} ج.م) لا يمكن أن يتجاوز إجمالي قيمة البند ({gross:N2} ج.م).");
+
             item.Quantity = dto.Quantity;
             item.UnitPrice = dto.UnitPrice;
             item.LineDiscountAmount = dto.LineDiscountAmount;
-            item.LineTotal = (item.Quantity * item.UnitPrice) - item.LineDiscountAmount;
+            item.LineTotal = gross - dto.LineDiscountAmount;
 
             RecalculateInvoiceTotals(item.Invoice);
             await _unitOfWork.SaveChangesAsync();

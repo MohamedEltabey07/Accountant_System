@@ -1,10 +1,10 @@
-﻿using DAL.AppDbContext;
+using DAL.AppDbContext;
 using DAL.IRepos;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
-using System.Reflection.Metadata.Ecma335;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace DAL.Repos
 {
@@ -36,30 +36,25 @@ namespace DAL.Repos
             if (checkItem == null) return false;
             return true;
         }
+
         public async Task<List<T>> GetAllAsync()
         {
             return await _dbSet.ToListAsync();
         }
 
-        public async Task<T> GetByIdAsync(string id)
+        public async Task<T?> GetByIdAsync(string id)
         {
-            var item = await _dbSet.FindAsync(id)?? throw new NullReferenceException();
-            return item;
+            return await _dbSet.FindAsync(id);
         }
 
-        public async Task<T> GetByIdAsync(int id)
+        public async Task<T?> GetByIdAsync(int id)
         {
-            var item = await _dbSet.FindAsync(id) ?? throw new NullReferenceException();
-            return item;
+            return await _dbSet.FindAsync(id);
         }
 
         public void Update(T item)
         {
-
-            var checkItem = _dbSet.Update(item);
-            if (checkItem.Entity == null) return;
             _dbSet.Update(item);
-            return;
         }
     }
 }

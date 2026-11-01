@@ -43,7 +43,7 @@ namespace Accountant_sys.Controllers
                 {
                     BusinessDate = targetDate,
                     OpeningCashAmount = preview.OpeningCashAmount,
-                    CountedCashAmount = 0m
+                    CountedCashAmount = null
                 }
             };
 

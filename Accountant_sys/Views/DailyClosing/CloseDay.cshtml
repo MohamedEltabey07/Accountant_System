@@ -147,11 +147,16 @@
 
                             <!-- Counted Cash Amount Input -->
                             <div class="col-md-6">
-                                <label asp-for="Form.CountedCashAmount" class="form-label fw-bold">
-                                    المبلغ الفعلي بالجرد (الموجود بالدرج حالياً) <span class="text-danger">*</span>
-                                </label>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label asp-for="Form.CountedCashAmount" class="form-label fw-bold mb-0">
+                                        المبلغ الفعلي بالجرد (الموجود بالدرج حالياً) <span class="text-danger">*</span>
+                                    </label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 shadow-sm" id="btnMatchExpected" title="ملء المبلغ تلقائياً إذا كان الدرج مطابقاً تماماً للرصيد الدفتري">
+                                        <i class="bi bi-magic me-1"></i>مطابق للدفتري (<span id="quickMatchVal">@Model.Preview.ExpectedClosingCashAmount.ToString("N2")</span> ج.م)
+                                    </button>
+                                </div>
                                 <div class="input-group input-group-lg">
-                                    <input asp-for="Form.CountedCashAmount" type="number" step="0.01" min="0" class="form-control text-center fw-bold text-primary" id="inputCountedCash" required />
+                                    <input asp-for="Form.CountedCashAmount" type="number" step="0.01" min="0" class="form-control text-center fw-bold text-primary" id="inputCountedCash" placeholder="أدخل المبلغ بعد العدّ الفعلي..." required />
                                     <span class="input-group-text">ج.م</span>
                                 </div>
                                 <span asp-validation-for="Form.CountedCashAmount" class="text-danger small"></span>
@@ -204,8 +209,8 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
-        const totalCashIn = @Model.Preview.TotalCashIn;
-        const totalCashOut = @Model.Preview.TotalCashOut;
+        const totalCashIn = @Model.Preview.TotalCashIn.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        const totalCashOut = @Model.Preview.TotalCashOut.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         const inputOpening = document.getElementById('inputOpeningCash');
         const inputCounted = document.getElementById('inputCountedCash');
@@ -219,20 +224,25 @@
             if (!inputOpening || !inputCounted) return;
 
             const opening = parseFloat(inputOpening.value) || 0;
-            const counted = parseFloat(inputCounted.value) || 0;
-
             const expected = (opening + totalCashIn) - totalCashOut;
-            const diff = counted - expected;
 
             calcExpectedDisplay.textContent = expected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ج.م';
+
+            const quickMatchVal = document.getElementById('quickMatchVal');
+            if (quickMatchVal) {
+                quickMatchVal.textContent = expected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
 
             if (inputCounted.value.trim() === '') {
                 calcDiffDisplay.textContent = '-';
                 calcDiffDisplay.className = 'fw-bold mb-0 text-muted';
                 calcStatusBadge.className = 'badge bg-secondary p-2 fs-6';
-                calcStatusBadge.innerHTML = '<i class="bi bi-pencil me-1"></i> يرجى إدخال المبلغ الفعلي';
+                calcStatusBadge.innerHTML = '<i class="bi bi-pencil me-1"></i> بانتظار إدخال الجرد الفعلي بالدرج';
                 return;
             }
+
+            const counted = parseFloat(inputCounted.value) || 0;
+            const diff = counted - expected;
 
             if (Math.abs(diff) < 0.01) {
                 calcDiffDisplay.textContent = '0.00 ج.م';
@@ -252,6 +262,17 @@
             }
         }
 
+        const btnMatch = document.getElementById('btnMatchExpected');
+        if (btnMatch) {
+            btnMatch.addEventListener('click', function () {
+                const opening = parseFloat(inputOpening.value) || 0;
+                const expected = (opening + totalCashIn) - totalCashOut;
+                inputCounted.value = expected.toFixed(2);
+                updateCalculations();
+                inputCounted.focus();
+            });
+        }
+
         if (inputOpening) inputOpening.addEventListener('input', updateCalculations);
         if (inputCounted) inputCounted.addEventListener('input', updateCalculations);
 
@@ -259,23 +280,69 @@
 
         if (btnConfirm) {
             btnConfirm.addEventListener('click', function () {
+                if (inputCounted.value.trim() === '') {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'تنبيه',
+                            text: 'يرجى إدخال المبلغ الفعلي الموجود بالدرج حالياً قبل اعتماد الإقفال.',
+                            icon: 'warning',
+                            confirmButtonColor: '#0d6efd',
+                            confirmButtonText: 'حسناً'
+                        });
+                    } else {
+                        alert('يرجى إدخال المبلغ الفعلي الموجود بالدرج حالياً قبل اعتماد الإقفال.');
+                    }
+                    inputCounted.focus();
+                    return;
+                }
+
                 const counted = parseFloat(inputCounted.value) || 0;
                 const opening = parseFloat(inputOpening.value) || 0;
                 const expected = (opening + totalCashIn) - totalCashOut;
                 const diff = counted - expected;
 
+                let title = 'تأكيد إقفال الوردية';
+                let icon = 'info';
+                let confirmText = 'نعم، اعتماد وإقفال';
                 let message = `المبلغ المعدود بالجرد: ${counted.toFixed(2)} ج.م\nالمتوقع دفترياً: ${expected.toFixed(2)} ج.م\n`;
+
                 if (Math.abs(diff) < 0.01) {
-                    message += "الخزينة مطابقة تماماً.";
+                    message += 'الخزينة مطابقة تماماً.';
+                    icon = 'success';
                 } else if (diff < 0) {
                     message += `تحذير: يوجد عجز بقيمة ${Math.abs(diff).toFixed(2)} ج.م!`;
+                    icon = 'warning';
                 } else {
                     message += `ملاحظة: توجد زيادة بقيمة ${diff.toFixed(2)} ج.م.`;
+                    icon = 'info';
                 }
-                message += "\n\nهل أنت متأكد من اعتماد إقفال وردية هذا اليوم؟";
 
-                if (confirm(message)) {
-                    closingForm.submit();
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: title,
+                        html: `<div class="text-start" dir="rtl">
+                                <div class="mb-2"><strong>المبلغ الفعلي بالدرج:</strong> ${counted.toFixed(2)} ج.م</div>
+                                <div class="mb-2"><strong>المتوقع دفترياً:</strong> ${expected.toFixed(2)} ج.م</div>
+                                <div class="p-2 rounded ${Math.abs(diff) < 0.01 ? 'bg-success text-white' : (diff < 0 ? 'bg-danger text-white' : 'bg-info text-dark')} fw-bold text-center mt-3">
+                                    ${Math.abs(diff) < 0.01 ? '<i class="bi bi-check-circle-fill me-1"></i> الخزينة مطابقة تماماً' : (diff < 0 ? `<i class="bi bi-exclamation-triangle-fill me-1"></i> عجز بقيمة ${Math.abs(diff).toFixed(2)} ج.م` : `<i class="bi bi-info-circle-fill me-1"></i> زيادة بقيمة ${diff.toFixed(2)} ج.م`)}
+                                </div>
+                               </div>`,
+                        icon: icon,
+                        showCancelButton: true,
+                        confirmButtonColor: '#0d6efd',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: confirmText,
+                        cancelButtonText: 'مراجعة',
+                        reverseButtons: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            closingForm.submit();
+                        }
+                    });
+                } else {
+                    if (confirm(message + '\n\nهل أنت متأكد من اعتماد إقفال وردية هذا اليوم؟')) {
+                        closingForm.submit();
+                    }
                 }
             });
         }

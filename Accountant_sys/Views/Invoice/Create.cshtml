@@ -151,6 +151,9 @@
                 $('#maritimeOrderFields').hide();
                 $('#retailNote').hide();
                 $('#CustomerId').val('');
+                $('#maritimeCompanySelect').prop('disabled', true);
+                $('#customerGroup select').prop('disabled', true);
+                $('#vendorGroup select').prop('disabled', false);
             } else if (selectedType === wholesaleSales) {
                 $('#customerGroup').show();
                 $('#vendorGroup').hide();
@@ -161,6 +164,7 @@
                 // Two selects bind CustomerId; keep only the visible one enabled so MVC binds correctly.
                 $('#maritimeCompanySelect').prop('disabled', true);
                 $('#customerGroup select').prop('disabled', false);
+                $('#vendorGroup select').prop('disabled', true);
             } else if (selectedType === maritimeSupply) {
                 $('#maritimeGroup').show();
                 $('#customerGroup').hide();
@@ -170,6 +174,7 @@
                 $('#VendorId').val('');
                 $('#maritimeCompanySelect').prop('disabled', false);
                 $('#customerGroup select').prop('disabled', true);
+                $('#vendorGroup select').prop('disabled', true);
             } else {
                 $('#customerGroup').hide();
                 $('#vendorGroup').hide();
@@ -179,7 +184,8 @@
                 $('#CustomerId').val('');
                 $('#VendorId').val('');
                 $('#maritimeCompanySelect').prop('disabled', true);
-                $('#customerGroup select').prop('disabled', false);
+                $('#customerGroup select').prop('disabled', true);
+                $('#vendorGroup select').prop('disabled', true);
             }
         }
 

@@ -43,13 +43,16 @@ namespace Accountant_sys.Models
 
             foreach (var line in sorted)
             {
-                var inPeriod =
-                    (!fromDate.HasValue || line.Date >= fromDate) &&
-                    (!toDate.HasValue || line.Date < toDate.Value.AddDays(1));
-
-                if (!inPeriod)
+                // Transactions before the period establish the beginning balance
+                if (fromDate.HasValue && line.Date < fromDate.Value)
                 {
                     model.BeginningBalance = line.RunningBalance;
+                    continue;
+                }
+
+                // Transactions after the period are excluded from this statement
+                if (toDate.HasValue && line.Date >= toDate.Value.AddDays(1))
+                {
                     continue;
                 }
 

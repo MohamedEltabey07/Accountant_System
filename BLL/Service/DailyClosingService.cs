@@ -50,14 +50,14 @@ namespace BLL.Service
                 , dto.BusinessDate.AddDays(1).Date);
             var allCashTrans = moneyIn + moneyOut;
             var expectedClosingCashAmount = (dto.OpeningCashAmount + moneyIn) - moneyOut;
-            var differenceAmount =  dto.CountedCashAmount - expectedClosingCashAmount;
-            var closingDay = await GetClosingByDateAsync(dto.BusinessDate);
+            var differenceAmount = (dto.CountedCashAmount ?? 0m) - expectedClosingCashAmount;
+            var closingDay = await _unitOfWork.DailyClosingRepo.GetByDateAsync(dto.BusinessDate);
             if (closingDay == null)
             {
                 var dailyClosing = new DailyClosing
                 {
                     BusinessDate = dto.BusinessDate,
-                    CountedClosingCashAmount = dto.CountedCashAmount,
+                    CountedClosingCashAmount = dto.CountedCashAmount ?? 0m,
                     OpeningCashAmount = dto.OpeningCashAmount,
                     ExpectedClosingCashAmount = expectedClosingCashAmount,
                     DifferenceAmount = differenceAmount,
@@ -70,13 +70,24 @@ namespace BLL.Service
                 await _unitOfWork.SaveChangesAsync();
                 return true;
             }
-            closingDay.OpeningCashAmount = dto.OpeningCashAmount;
-            closingDay.ExpectedClosingCashAmount = expectedClosingCashAmount;
-            closingDay.CountedClosingCashAmount = dto.CountedCashAmount;
-            closingDay.DifferenceAmount = differenceAmount;
-            closingDay.Notes = dto.Notes;
-            var mappedDailyClosing = _mapper.Map<DailyClosing>(closingDay);
-            _unitOfWork.DailyClosingRepo.Update(mappedDailyClosing);
+
+            // Re-fetch as a change-tracked instance (handles a previously reopened
+            // closing already tracked by the current unit of work) and save.
+            // _dbSet.Update on a second detached instance would throw a
+            // duplicate-tracking exception in that case.
+            var trackedClosing = await _unitOfWork.DailyClosingRepo.GetByIdAsync(closingDay.Id);
+            if (trackedClosing == null)
+            {
+                trackedClosing = closingDay;
+                _unitOfWork.DailyClosingRepo.Update(trackedClosing);
+            }
+            trackedClosing.OpeningCashAmount = dto.OpeningCashAmount;
+            trackedClosing.ExpectedClosingCashAmount = expectedClosingCashAmount;
+            trackedClosing.CountedClosingCashAmount = dto.CountedCashAmount ?? 0m;
+            trackedClosing.DifferenceAmount = differenceAmount;
+            trackedClosing.IsClosed = true;
+            trackedClosing.ClosedAt = DateTime.UtcNow;
+            trackedClosing.Notes = dto.Notes;
             await _unitOfWork.SaveChangesAsync();
             return true;
         }

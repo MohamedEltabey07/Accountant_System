@@ -247,7 +247,7 @@ namespace BLL.Service
 
         private static void ValidateMovementDate(DateTime movementDate, string operationName)
         {
-            if (movementDate > DateTime.Today.AddDays(1))
+            if (movementDate.Date > DateTime.Today)
                 throw new InvalidOperationException($"تاريخ حركة {operationName} لا يمكن أن يكون في المستقبل.");
         }
 

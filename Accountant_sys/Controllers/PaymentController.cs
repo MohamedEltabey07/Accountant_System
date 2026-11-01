@@ -1,4 +1,6 @@
+using BLL.DTOs.Cash.InComingData;
 using BLL.DTOs.Customer.OutGoingData;
+using BLL.DTOs.ExpenseCategory.OutGoingData;
 using BLL.DTOs.MaritimeCompany.OutGoingData;
 using BLL.DTOs.Payment.InComingData;
 using BLL.DTOs.Payment.OutGoingData;
@@ -17,19 +19,22 @@ namespace Accountant_sys.Controllers
         private readonly IVendorService _vendorService;
         private readonly ICashTransactionService _cashTransactionService;
         private readonly IMaritimeCompanyService _maritimeCompanyService;
+        private readonly IExpenseCategoryService _expenseCategoryService;
 
         public PaymentController(
             IPaymentService paymentService,
             ICustomerService customerService,
             IVendorService vendorService,
             ICashTransactionService cashTransactionService,
-            IMaritimeCompanyService maritimeCompanyService)
+            IMaritimeCompanyService maritimeCompanyService,
+            IExpenseCategoryService expenseCategoryService)
         {
             _paymentService = paymentService;
             _customerService = customerService;
             _vendorService = vendorService;
             _cashTransactionService = cashTransactionService;
             _maritimeCompanyService = maritimeCompanyService;
+            _expenseCategoryService = expenseCategoryService;
         }
 
         // ==========================================
@@ -150,6 +155,49 @@ namespace Accountant_sys.Controllers
         }
 
         // ==========================================
+        // EXPENSE PAYMENT (سند صرف مصروفات تشغيلية)
+        // ==========================================
+        [HttpGet]
+        public async Task<IActionResult> Expense()
+        {
+            await PrepareExpenseCategorySelectListAsync();
+            return View(new CreateCashMovementDto
+            {
+                TransactionDate = DateTime.Today,
+                Category = CashCategory.Expense,
+                Direction = CashDirection.Out
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Expense(CreateCashMovementDto dto)
+        {
+            dto.Category = CashCategory.Expense;
+            dto.Direction = CashDirection.Out;
+
+            if (!ModelState.IsValid)
+            {
+                await PrepareExpenseCategorySelectListAsync();
+                return View(dto);
+            }
+
+            try
+            {
+                var transactionId = await _cashTransactionService.RecordExpenseAsync(dto);
+                TempData["SuccessMessage"] = "تم تسجيل سند صرف المصروف بنجاح وخصم المبلغ من الخزينة.";
+                return RedirectToAction(nameof(Receipt), new { id = transactionId });
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+
+            await PrepareExpenseCategorySelectListAsync();
+            return View(dto);
+        }
+
+        // ==========================================
         // RECEIPT / VOUCHER (printable)
         // ==========================================
         [HttpGet]
@@ -161,7 +209,7 @@ namespace Accountant_sys.Controllers
 
             ViewBag.VoucherTitle = transaction.Category == CashCategory.VendorPayment
                 ? "سند صرف - مورد"
-                : "سند قبض - عميل";
+                : (transaction.Category == CashCategory.Expense ? "سند صرف مصروفات تشغيلية" : "سند قبض - عميل");
 
             return View(transaction);
         }
@@ -169,6 +217,11 @@ namespace Accountant_sys.Controllers
         // ==========================================
         // PRIVATE HELPERS
         // ==========================================
+        private async Task PrepareExpenseCategorySelectListAsync()
+        {
+            var categories = await _expenseCategoryService.GetActiveCategoriesAsync() ?? new List<ExpenseCategoryDto>();
+            ViewBag.ExpenseCategories = new SelectList(categories, "Id", "Name");
+        }
         private async Task PrepareCustomerSelectListAsync()
         {
             var customers = await _customerService.GetActiveCustomersAsync() ?? new List<CustomerDto>();

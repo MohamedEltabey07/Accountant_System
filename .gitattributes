@@ -22,6 +22,9 @@
 *.map text
 
 # Explicitly declare binary files (do not touch line endings)
+*.zip binary
+*.rar binary
+*.7z binary
 *.png binary
 *.jpg binary
 *.jpeg binary

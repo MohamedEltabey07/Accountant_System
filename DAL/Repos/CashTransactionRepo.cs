@@ -5,8 +5,7 @@ using DAL.IRepos;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
-using System.Reflection.Metadata.Ecma335;
-using System.Security.Cryptography.X509Certificates;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace DAL.Repos
@@ -22,11 +21,11 @@ namespace DAL.Repos
 
         public async Task<CashTransaction?> GetByIdWithDetailsAsync(int id)
         {
-            var cashTrans = await _context.CashTransactions.Where(i => i.Id == id )
+            var cashTrans = await _context.CashTransactions.Where(i => i.Id == id)
                 .Include(c => c.Customer).Include(v => v.Vendor)
-                .Include(e => e.ExpenseCategory).Include(s => s.SourceInvoice).Include(p => p.PaymentAllocations).ThenInclude(i => i.Invoice).AsNoTracking().
-                FirstOrDefaultAsync();
-            if (cashTrans == null ) return null;
+                .Include(e => e.ExpenseCategory).Include(s => s.SourceInvoice).Include(p => p.PaymentAllocations).ThenInclude(i => i.Invoice).AsNoTracking()
+                .FirstOrDefaultAsync();
+            if (cashTrans == null) return null;
             return cashTrans;
         }
 
@@ -64,8 +63,8 @@ namespace DAL.Repos
         public async Task<List<CashTransaction>> GetCustomerPaymentsAsync(int customerId)
         {
             var customerPayment = await _context.CashTransactions.Where(c => c.CustomerId == customerId
-            && c.VendorId == null && c.Category == CashCategory.CustomerPayment).
-            OrderByDescending(t => t.TransactionDate)
+            && c.VendorId == null && c.Category == CashCategory.CustomerPayment)
+            .OrderByDescending(t => t.TransactionDate)
             .AsNoTracking().ToListAsync();
             if (!customerPayment.Any()) return null;
             return customerPayment;
@@ -73,8 +72,8 @@ namespace DAL.Repos
 
         public async Task<List<CashTransaction>> GetVendorPaymentsAsync(int vendorId)
         {
-            var vendorPayment = await _context.CashTransactions.
-                Where(c => c.VendorId == vendorId && c.Category == CashCategory.VendorPayment)
+            var vendorPayment = await _context.CashTransactions
+                .Where(c => c.VendorId == vendorId && c.Category == CashCategory.VendorPayment)
                 .OrderByDescending(t => t.TransactionDate)
                 .AsNoTracking().ToListAsync();
             if (!vendorPayment.Any()) return null;
@@ -83,18 +82,22 @@ namespace DAL.Repos
 
         public async Task<decimal> GetTotalCashInAsync(DateTime fromDate, DateTime toDate)
         {
-            var totalInCash = await _context.CashTransactions.Where(i => i.CreatedAt >= fromDate && i.CreatedAt <= toDate)
-                .Where(d => d.Direction == CashDirection.In)
-                .Select(t => t.Amount).SumAsync();
-            return totalInCash;
+            var start = fromDate.Date;
+            var endExclusive = toDate.Date > fromDate.Date ? toDate.Date : toDate.Date.AddDays(1);
+            return await _context.CashTransactions
+                .Where(i => i.TransactionDate >= start && i.TransactionDate < endExclusive && i.Direction == CashDirection.In)
+                .Select(t => t.Amount)
+                .SumAsync();
         }
 
         public async Task<decimal> GetTotalCashOutAsync(DateTime fromDate, DateTime toDate)
         {
-            var totalInCash = await _context.CashTransactions.Where(i => i.CreatedAt >= fromDate && i.CreatedAt <= toDate)
-                .Where(d => d.Direction == CashDirection.Out)
-                .Select(t => t.Amount).SumAsync();
-            return totalInCash;
+            var start = fromDate.Date;
+            var endExclusive = toDate.Date > fromDate.Date ? toDate.Date : toDate.Date.AddDays(1);
+            return await _context.CashTransactions
+                .Where(i => i.TransactionDate >= start && i.TransactionDate < endExclusive && i.Direction == CashDirection.Out)
+                .Select(t => t.Amount)
+                .SumAsync();
         }
     }
 }

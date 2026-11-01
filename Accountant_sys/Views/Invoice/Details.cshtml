@@ -14,57 +14,7 @@
     var totalReturnedAmount = (decimal)(ViewBag.TotalReturnedAmount ?? 0m);
 }
 
-@functions {
-    // Professional Arabic Tafqeet (Number to Words)
-    private static readonly string[] Ones = { "", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر" };
-    private static readonly string[] Tens = { "", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون" };
-    private static readonly string[] Hundreds = { "", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة" };
-
-    public static string ToArabicWords(decimal amount)
-    {
-        if (amount == 0) return "صفر جنيه مصري لا غير";
-        long integerPart = (long)Math.Floor(amount);
-        int decimalPart = (int)Math.Round((amount - integerPart) * 100);
-
-        string words = ConvertGroup(integerPart);
-        string result = "فقط " + words + " جنيهاً مصرياً";
-        if (decimalPart > 0)
-        {
-            result += " و " + ConvertGroup(decimalPart) + " قرشاً";
-        }
-        result += " لا غير";
-        return result;
-    }
-
-    private static string ConvertGroup(long number)
-    {
-        if (number == 0) return "";
-        if (number < 20) return Ones[number];
-        if (number < 100)
-        {
-            long unit = number % 10;
-            long ten = number / 10;
-            return (unit > 0 ? Ones[unit] + " و " : "") + Tens[ten];
-        }
-        if (number < 1000)
-        {
-            long rem = number % 100;
-            long hundred = number / 100;
-            return Hundreds[hundred] + (rem > 0 ? " و " + ConvertGroup(rem) : "");
-        }
-        if (number < 1000000)
-        {
-            long rem = number % 1000;
-            long thousands = number / 1000;
-            string thText = thousands == 1 ? "ألف" : (thousands == 2 ? "ألفان" : (thousands <= 10 ? ConvertGroup(thousands) + " آلاف" : ConvertGroup(thousands) + " ألفاً"));
-            return thText + (rem > 0 ? " و " + ConvertGroup(rem) : "");
-        }
-        long millRem = number % 1000000;
-        long millions = number / 1000000;
-        string millText = millions == 1 ? "مليون" : (millions == 2 ? "مليونان" : (millions <= 10 ? ConvertGroup(millions) + " ملايين" : ConvertGroup(millions) + " مليوناً"));
-        return millText + (millRem > 0 ? " و " + ConvertGroup(millRem) : "");
-    }
-}
+@using BLL.Service
 
 <style>
     /* ==========================================================================
@@ -753,13 +703,13 @@ else if (isCancelled)
                 <div class="p-3 bg-light rounded-3 border">
                     <span class="text-muted small fw-bold d-block mb-1">المبلغ الإجمالي كتابةً (فقط وقدره):</span>
                     <div class="fw-bold text-dark fs-6">
-                        @ToArabicWords(Model.TotalAmount)
+                        @Tafqeet.ToArabicWords(Model.TotalAmount)
                     </div>
                     @if (isPosted && Model.RemainingBalance > 0)
                     {
                         <div class="text-danger small mt-2 pt-2 border-top">
                             <i class="bi bi-exclamation-circle me-1"></i>
-                            <strong>المبلغ المتبقي غير المسدد:</strong> @ToArabicWords(Model.RemainingBalance)
+                            <strong>المبلغ المتبقي غير المسدد:</strong> @Tafqeet.ToArabicWords(Model.RemainingBalance)
                         </div>
                     }
                 </div>
@@ -864,8 +814,8 @@ else if (isCancelled)
             <strong class="font-monospace">@(isDraft ? "#DRAFT-" + Model.Id : Model.InvoiceNumber)</strong>
         </div>
         <div class="d-flex justify-content-between">
-            <span>التاريخ:</span>
-            <span>@Model.TransactionDate.ToString("yyyy-MM-dd") @DateTime.Now.ToString("hh:mm tt")</span>
+            <span>التاريخ والوقت:</span>
+            <span>@Model.TransactionDate.ToString("yyyy-MM-dd") @(Model.PostedAt?.ToLocalTime().ToString("hh:mm tt") ?? (Model.CreatedAt != default ? Model.CreatedAt.ToLocalTime().ToString("hh:mm tt") : Model.TransactionDate.ToString("hh:mm tt")))</span>
         </div>
         @if (isMaritime && !string.IsNullOrWhiteSpace(Model.ExternalOrderNumber))
         {

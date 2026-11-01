@@ -63,7 +63,24 @@ namespace BLL.Service
             await _unitOfWork.CashTransactionRepo.AddAsync(cashTrans);
             await _unitOfWork.SaveChangesAsync();
             return true;
+        }
 
+        public async Task<int> RecordExpenseAsync(CreateCashMovementDto dto)
+        {
+            if (dto == null) throw new ArgumentNullException(nameof(dto), "بيانات المصروف مطلوبة.");
+            if (dto.Amount <= 0) throw new InvalidOperationException("مبلغ المصروف يجب أن يكون أكبر من الصفر.");
+            if (dto.ExpenseCategoryId == null || dto.ExpenseCategoryId <= 0)
+                throw new InvalidOperationException("يجب اختيار بند المصروف من القائمة.");
+
+            dto.Category = CashCategory.Expense;
+            dto.Direction = CashDirection.Out;
+            dto.TransactionDate = dto.TransactionDate != default ? dto.TransactionDate : DateTime.Today;
+
+            var cashTrans = _mapper.Map<CashTransaction>(dto);
+            cashTrans.CreatedAt = DateTime.UtcNow;
+            await _unitOfWork.CashTransactionRepo.AddAsync(cashTrans);
+            await _unitOfWork.SaveChangesAsync();
+            return cashTrans.Id;
         }
 
         public async Task<List<CashTransactionDto>> GetTransactionsAsync(DateTime? from, DateTime? to, CashCategory? category, CashDirection? direction)
@@ -73,6 +90,7 @@ namespace BLL.Service
             var mappedCashTransList = _mapper.Map<List<CashTransactionDto>>(cashTransList);
             return mappedCashTransList;
         }
+
         public async Task<CashTransactionDto?> GetTransactionByIdAsync(int id)
         {
             var cashTrans = await _unitOfWork.CashTransactionRepo.GetByIdWithDetailsAsync(id);

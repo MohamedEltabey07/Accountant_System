@@ -1,4 +1,5 @@
 using BLL.IService;
+using System.Diagnostics;
 using BLL.Mapping.AdminMapping.InCommingData;
 using BLL.Mapping.CashTransMapping.InComingData;
 using BLL.Mapping.CashTransMapping.OutGoingData;
@@ -106,8 +107,28 @@ builder.Services.AddScoped<IDailyClosingService, DailyClosingService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IStockMovementService, StockMovementService>();
 builder.Services.AddScoped<IMaritimeCompanyService, MaritimeCompanyService>();
+builder.Services.AddScoped<IBackupService, BackupService>();
 
 var app = builder.Build();
+
+// Desktop-style startup: open the operator's browser automatically when the app
+// starts outside a development IDE (single-user machine, no external hosting).
+if (!app.Environment.IsDevelopment())
+{
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        try
+        {
+            var startUrl = app.Urls.FirstOrDefault(u => u != null && u.StartsWith("http://"))
+                           ?? "http://localhost:5000";
+            Process.Start(new ProcessStartInfo(startUrl) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Missing/default browser is not fatal — the server keeps running.
+        }
+    });
+}
 
 if (!app.Environment.IsDevelopment())
 {

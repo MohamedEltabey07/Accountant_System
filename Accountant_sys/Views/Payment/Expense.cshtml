@@ -1,0 +1,188 @@
+@model BLL.DTOs.Cash.InComingData.CreateCashMovementDto
+@{
+    ViewData["Title"] = "سند صرف مصروفات تشغيلية";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">
+            <i class="bi bi-wallet2 text-warning me-2"></i> سند صرف مصروفات تشغيلية
+        </h3>
+        <p class="text-muted mb-0">تسجيل منصرف نقدي من الخزينة لبنود التشغيل (إيجار، كهرباء، مرتبات، صيانة، مستلزمات)</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-right me-1"></i> رجوع للمدفوعات
+        </a>
+        <a asp-controller="ExpenseCategory" asp-action="Index" class="btn btn-outline-primary">
+            <i class="bi bi-tags me-1"></i> دليل بنود المصروفات
+        </a>
+    </div>
+</div>
+
+<form asp-action="Expense" method="post" id="expenseForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Category" value="@DAL.Enums.CashCategory.Expense" />
+    <input type="hidden" asp-for="Direction" value="@DAL.Enums.CashDirection.Out" />
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm border-0 mb-4" role="alert"></div>
+
+    <div class="row g-4">
+        <!-- Main Form Fields -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="card-title mb-0 fw-bold text-dark">
+                        <i class="bi bi-pencil-square text-primary me-2"></i> بيانات سند الصرف
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <!-- Date -->
+                        <div class="col-md-6">
+                            <label asp-for="TransactionDate" class="form-label fw-bold">
+                                تاريخ الصرف <span class="text-danger">*</span>
+                            </label>
+                            <input asp-for="TransactionDate" type="date" class="form-control" id="idExpenseDate" />
+                            <span asp-validation-for="TransactionDate" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Expense Category -->
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label asp-for="ExpenseCategoryId" class="form-label fw-bold mb-0">
+                                    بند المصروف <span class="text-danger">*</span>
+                                </label>
+                                <a asp-controller="ExpenseCategory" asp-action="Create" class="btn btn-link btn-sm p-0 text-decoration-none small" target="_blank">
+                                    <i class="bi bi-plus-circle me-1"></i>إضافة بند جديد
+                                </a>
+                            </div>
+                            <select asp-for="ExpenseCategoryId" asp-items="ViewBag.ExpenseCategories" class="form-select" id="idCategorySelect" required>
+                                <option value="">-- اختر بند المصروف من الدليل --</option>
+                            </select>
+                            <span asp-validation-for="ExpenseCategoryId" class="text-danger small"></span>
+                        </div>
+
+                        <!-- Amount -->
+                        <div class="col-md-12">
+                            <label asp-for="Amount" class="form-label fw-bold">
+                                المبلغ المنصرف نقداً <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-lg">
+                                <input asp-for="Amount" type="number" step="0.01" min="0.01" class="form-control text-center fw-bold text-danger font-tabular" id="idExpenseAmount" placeholder="0.00" required />
+                                <span class="input-group-text fw-bold">ج.م</span>
+                            </div>
+                            <span asp-validation-for="Amount" class="text-danger small"></span>
+                            <small class="text-muted d-block mt-1">المبلغ الذي تم إخراجه نقداً من درج الكاشير.</small>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="col-12">
+                            <label asp-for="Notes" class="form-label fw-bold">البيان والملاحظات</label>
+                            <textarea asp-for="Notes" class="form-control" rows="3" placeholder="اكتب تفاصيل المصروف (مثلاً: فاتورة كهرباء لشهر 10، أو إكرامية، أو مرتبات أسبوعية...)" id="idExpenseNotes"></textarea>
+                            <span asp-validation-for="Notes" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar / Financial Impact Card -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 border-top border-warning border-4 mb-4">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="card-title mb-0 fw-bold text-dark">
+                        <i class="bi bi-cash-stack text-warning me-2"></i> الأثر على الخزينة واليومية
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3 p-3 bg-light rounded text-center">
+                        <span class="text-muted small d-block mb-1">المبلغ المطلوب صرفه</span>
+                        <h3 class="fw-bold text-danger font-tabular mb-0" id="displaySummaryAmount">0.00 <small class="fs-6 text-muted">ج.م</small></h3>
+                    </div>
+
+                    <ul class="list-unstyled small text-muted mb-4">
+                        <li class="mb-2 d-flex align-items-start gap-2">
+                            <i class="bi bi-check-circle-fill text-success fs-6 mt-1"></i>
+                            <span>يُسجل كـ <strong>منصرف نقدية (Cash Out)</strong> مباشرة في دفاتر الخزينة.</span>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start gap-2">
+                            <i class="bi bi-check-circle-fill text-success fs-6 mt-1"></i>
+                            <span>يُخصم من رصيد الدرج المتوقع في <strong>تقفيل الوردية اليومية</strong>.</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-check-circle-fill text-success fs-6 mt-1"></i>
+                            <span>يصدر له <strong>سند صرف رسمي A4 وإيصال حراري</strong> فوري قابل للطباعة.</span>
+                        </li>
+                    </ul>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold shadow-sm" id="btnSubmitExpense">
+                            <i class="bi bi-check2-circle me-1"></i> اعتماد وحفظ سند الصرف
+                        </button>
+                        <a asp-action="Index" class="btn btn-outline-secondary">إلغاء</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const inputAmount = document.getElementById('idExpenseAmount');
+        const displayAmount = document.getElementById('displaySummaryAmount');
+        const expenseForm = document.getElementById('expenseForm');
+        const categorySelect = document.getElementById('idCategorySelect');
+
+        function updateAmountPreview() {
+            if (!inputAmount || !displayAmount) return;
+            const val = parseFloat(inputAmount.value) || 0;
+            displayAmount.innerHTML = val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' <small class="fs-6 text-muted">ج.م</small>';
+        }
+
+        if (inputAmount) {
+            inputAmount.addEventListener('input', updateAmountPreview);
+        }
+
+        if (expenseForm) {
+            expenseForm.addEventListener('submit', function (e) {
+                const val = parseFloat(inputAmount.value) || 0;
+                if (val <= 0) {
+                    e.preventDefault();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'تنبيه',
+                            text: 'يرجى إدخال مبلغ صحيح أكبر من الصفر.',
+                            icon: 'warning',
+                            confirmButtonColor: '#f59e0b',
+                            confirmButtonText: 'حسناً'
+                        });
+                    } else {
+                        alert('يرجى إدخال مبلغ صحيح أكبر من الصفر.');
+                    }
+                    inputAmount.focus();
+                    return;
+                }
+
+                if (!categorySelect.value) {
+                    e.preventDefault();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'تنبيه',
+                            text: 'يرجى اختيار بند المصروف من القائمة.',
+                            icon: 'warning',
+                            confirmButtonColor: '#f59e0b',
+                            confirmButtonText: 'حسناً'
+                        });
+                    } else {
+                        alert('يرجى اختيار بند المصروف من القائمة.');
+                    }
+                    categorySelect.focus();
+                    return;
+                }
+            });
+        }
+    </script>
+}

@@ -1,0 +1,124 @@
+@model List<BLL.DTOs.Backup.OutGoingData.BackupFileDto>
+@using BLL.Service
+@{
+    ViewData["Title"] = "النسخ الاحتياطي والاسترجاع";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-hdd-stack me-2"></i> النسخ الاحتياطي والاسترجاع</h4>
+    <form asp-action="CreateBackup" method="post" class="d-inline"
+          data-swal
+          data-swal-title="إنشاء نسخة احتياطية"
+          data-swal-text="سيتم إنشاء نسخة احتياطية كاملة من قاعدة البيانات في مجلد (@ViewBag.BackupFolder). تستغرق العملية بضع لحظات. متابعة؟"
+          data-swal-confirm="نعم، أنشئ النسخة"
+          data-swal-color="#0f766e">
+        <button type="submit" class="btn btn-primary shadow-sm">
+            <i class="bi bi-cloud-arrow-down me-1"></i> إنشاء نسخة احتياطية الآن
+        </button>
+    </form>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body bg-light rounded-3">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-folder-fill text-primary fs-4"></i>
+                    <div>
+                        <strong class="d-block small text-muted">مجلد النسخ الاحتياطية</strong>
+                        <code id="backup-folder">@ViewBag.BackupFolder</code>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-database-check text-success fs-4"></i>
+                    <div>
+                        <strong class="d-block small text-muted">عدد النسخ المتاحة</strong>
+                        <span class="fw-bold font-tabular">@Model.Count</span> نسخة
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-lock-fill text-warning fs-4"></i>
+                    <div class="small text-muted">
+                        يوصى بمسح النسخة الاحتياطية قبل الاسترجاع وإغلاق الشاشات المفتوحة. أي معاملات بعد آخر نسخة يجب إعادة إدخالها يدوياً.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0"><i class="bi bi-list-nested me-2"></i> سجل النسخ الاحتياطية</h5>
+    </div>
+    <div class="card-body">
+        @if (Model.Count == 0)
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-hdd fs-1 d-block mb-3"></i>
+                <p class="mb-3">لا توجد نسخ احتياطية بعد. اضغط «إنشاء نسخة احتياطية الآن» لحفظ أول نسخة من قاعدة البيانات.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>اسم الملف</th>
+                            <th>الحجم</th>
+                            <th>تاريخ الإنشاء</th>
+                            <th>الحالة</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Count; i++)
+                        {
+                            var backup = Model[i];
+                            <tr>
+                                <td class="font-tabular">@(i + 1)</td>
+                                <td class="text-end font-tabular" dir="ltr">@backup.FileName</td>
+                                <td class="font-tabular text-nowrap">@backup.SizeMb.ToString("N2") MB</td>
+                                <td class="font-tabular">@backup.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                                <td>
+                                    @if (backup.IsNewest)
+                                    {
+                                        <span class="badge bg-success">أحدث نسخة</span>
+                                    }
+                                </td>
+                                <td>
+                                    <form asp-action="RestoreBackup" method="post" class="d-inline"
+                                          data-swal
+                                          data-swal-title="استرجاع قاعدة البيانات"
+                                          data-swal-text="سيتم استبدال قاعدة البيانات الحالية بالكامل بمحتوى النسخة (@backup.FileName). جميع البيانات المسجلة بعد هذه النسخة ستفقد نهائياً. هل أنت متأكد؟"
+                                          data-swal-confirm="نعم، استرجع الآن"
+                                          data-swal-color="#dc3545">
+                                        <input type="hidden" name="FileName" value="@backup.FileName" />
+                                        <button type="submit" class="btn btn-sm btn-outline-@(backup.IsNewest ? "secondary" : "danger")"
+                                                title="استرجاع هذه النسخة">
+                                            <i class="bi bi-arrow-counterclockwise"></i> استرجاع
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-info" title="فتح مجلد النسخ الاحتياطية"
+                                            onclick="Swal.fire({title: 'مسار الملف', text: '@backup.FilePath', icon: 'info'});">
+                                        <i class="bi bi-geo-alt"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/confirm-submit.js"></script>
+}

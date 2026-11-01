@@ -20,11 +20,24 @@ document.addEventListener('DOMContentLoaded', function () {
         const allRows = Array.from(tbody.querySelectorAll('tr:not(.no-filter-row)'));
         const totalCount = allRows.length;
 
+        // Extract unit name from data-counter-unit attribute or existing counter text
+        let unitName = input.getAttribute('data-counter-unit');
+        if (!unitName && counterTargetId) {
+            const initialCounter = document.getElementById(counterTargetId);
+            if (initialCounter) {
+                const match = initialCounter.textContent.trim().match(/إجمالي\s+\d+\s+(.*)$/);
+                if (match && match[1]) {
+                    unitName = match[1].trim();
+                }
+            }
+        }
+        if (!unitName) unitName = 'سجل';
+
         function updateCounter(visibleCount) {
             if (counterTargetId) {
                 const counterEl = document.getElementById(counterTargetId);
                 if (counterEl) {
-                    counterEl.textContent = `عرض ${visibleCount} من إجمالي ${totalCount} سجل`;
+                    counterEl.textContent = `عرض ${visibleCount} من إجمالي ${totalCount} ${unitName}`;
                 }
             }
         }
@@ -47,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             updateCounter(visibleCount);
 
-            // Handle Empty Search Results State
+            // Handle Empty Search Results State safely without innerHTML XSS
             let emptyMsgRow = tbody.querySelector('.search-empty-row');
             if (visibleCount === 0 && query !== '') {
                 if (!emptyMsgRow) {
@@ -57,11 +70,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     emptyMsgRow.innerHTML = `
                         <td colspan="${colCount}" class="text-center py-4 text-muted bg-light">
                             <i class="bi bi-search fs-2 d-block mb-2 text-secondary"></i>
-                            <div class="fw-bold">لا توجد نتائج مطابقة للبحث: "${query}"</div>
+                            <div class="fw-bold search-empty-query mb-1"></div>
                             <small class="text-muted">جرب البحث بكلمة أخرى أو رقم مستند مختلف.</small>
                         </td>
                     `;
                     tbody.appendChild(emptyMsgRow);
+                }
+                const queryTextDiv = emptyMsgRow.querySelector('.search-empty-query');
+                if (queryTextDiv) {
+                    queryTextDiv.textContent = `لا توجد نتائج مطابقة للبحث: "${this.value.trim()}"`;
                 }
             } else if (emptyMsgRow) {
                 emptyMsgRow.remove();
@@ -77,30 +94,48 @@ document.addEventListener('DOMContentLoaded', function () {
             const form = this.closest('form');
             const href = this.getAttribute('href');
 
+            const proceed = () => {
+                if (form) {
+                    if (el.dataset.submitting === 'true') return;
+                    el.dataset.submitting = 'true';
+                    el.classList.add('disabled');
+                    el.style.pointerEvents = 'none';
+                    if (el.tagName === 'BUTTON' || el.tagName === 'A') {
+                        el.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> جاري المعالجة...';
+                    }
+                    try {
+                        if (typeof form.requestSubmit === 'function') {
+                            form.requestSubmit();
+                        } else {
+                            form.submit();
+                        }
+                    } catch (err) {
+                        form.submit();
+                    }
+                } else if (href && href !== '#') {
+                    window.location.href = href;
+                }
+            };
+
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     title: 'تأكيد الإجراء',
                     text: message,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonColor: '#4f46e5',
+                    confirmButtonColor: '#10b981',
                     cancelButtonColor: '#64748b',
                     confirmButtonText: 'نعم، تأكيد',
                     cancelButtonText: 'إلغاء',
                     reverseButtons: true
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        if (form) {
-                            form.submit();
-                        } else if (href && href !== '#') {
-                            window.location.href = href;
-                        }
+                        proceed();
                     }
                 });
             } else {
                 if (confirm(message)) {
-                    if (form) form.submit();
-                    else if (href && href !== '#') window.location.href = href;
+                    proceed();
                 }
             }
         });

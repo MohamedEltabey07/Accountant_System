@@ -287,12 +287,10 @@ body {
     .top-navbar,
     .btn,
     .alert,
-    nav,
-    footer,
+    nav.sidebar,
+    footer.footer,
     .pagination,
-    .dataTables_filter,
-    .input-group,
-    header {
+    .dataTables_filter {
         display: none !important;
     }
 

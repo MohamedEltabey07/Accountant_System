@@ -297,8 +297,13 @@
         <div class="section-title"><i class="bi bi-cash-stack me-1"></i> الخزينة واليومية</div>
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Payment" ? "active" : "")" asp-controller="Payment" asp-action="Index">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Payment" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Payment" asp-action="Index">
                     <i class="bi bi-credit-card-2-front"></i> سندات القبض والصرف
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Payment" && ViewContext.RouteData.Values["Action"]?.ToString() == "Expense" ? "active" : "")" asp-controller="Payment" asp-action="Expense">
+                    <i class="bi bi-wallet2"></i> تسجيل صرف مصروف
                 </a>
             </li>
             <li class="nav-item">
@@ -347,6 +352,11 @@
             <li class="nav-item">
                 <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Account" ? "active" : "")" asp-controller="Account" asp-action="ChangePassword">
                     <i class="bi bi-key-fill"></i> تغيير كلمة المرور
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Backup" ? "active" : "")" asp-controller="Backup" asp-action="Index">
+                    <i class="bi bi-hdd-stack-fill"></i> النسخ الاحتياطي والاسترجاع
                 </a>
             </li>
         </ul>
