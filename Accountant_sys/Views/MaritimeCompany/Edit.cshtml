@@ -1,0 +1,67 @@
+@model BLL.DTOs.MaritimeCompany.InComingData.UpdateMaritimeCompanyDto
+@{
+    ViewData["Title"] = "تعديل بيانات الشركة";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-pencil-square me-2 text-warning"></i> تعديل بيانات الشركة البحرية</h4>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-right me-1"></i> رجوع لسجل الشركات
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="card-title mb-0 text-primary">
+                    <i class="bi bi-person-vcard me-1"></i> بيانات الشركة البحرية
+                </h5>
+            </div>
+            <div class="card-body">
+                <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                <form asp-action="Edit" method="post">
+                    <input type="hidden" asp-for="Id" />
+
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label fw-bold">اسم الشركة <span class="text-danger">*</span></label>
+                        <input asp-for="Name" class="form-control" />
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="PhoneNumber" class="form-label fw-bold">رقم الهاتف</label>
+                            <input asp-for="PhoneNumber" class="form-control" dir="ltr" />
+                            <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Address" class="form-label fw-bold">العنوان</label>
+                            <input asp-for="Address" class="form-control" />
+                            <span asp-validation-for="Address" class="text-danger small"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check form-switch">
+                        <input asp-for="IsActive" class="form-check-input" type="checkbox" id="companyActiveSwitch" />
+                        <label class="form-check-label fw-bold" for="companyActiveSwitch">
+                            الحساب نشط (يسمح بإصدار أوامر التوريد وتلقي الدفعات)
+                        </label>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary">إلغاء</a>
+                        <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+                            <i class="bi bi-check-lg me-1"></i> حفظ التعديلات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

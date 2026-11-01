@@ -1,10 +1,18 @@
 using BLL.IService;
 using BLL.Mapping.AdminMapping.InCommingData;
+using BLL.Mapping.CashTransMapping.InComingData;
+using BLL.Mapping.CashTransMapping.OutGoingData;
+using BLL.Mapping.CreditNotesMapping.OutGoingData;
 using BLL.Mapping.CustomerMapping.InComingData;
 using BLL.Mapping.CustomerMapping.OutGoingData;
+using BLL.Mapping.ExpenseCategoryMapping.OutGoingData;
 using BLL.Mapping.InvoiceMapping;
 using BLL.Mapping.InvoiceMapping.InComingData;
 using BLL.Mapping.InvoiceMapping.OutGoingData;
+using BLL.Mapping.MaritimeCompanyMapping;
+using BLL.Mapping.OpeningBalanceMapping.InComingData;
+using BLL.Mapping.OpeningBalanceMapping.OutGoingData;
+using BLL.Mapping.Payment.OutGoingData;
 using BLL.Mapping.ProductMapping.InCommingData;
 using BLL.Mapping.ProductMapping.OutGoingData;
 using BLL.Mapping.VendorMapping.InComingData;
@@ -71,13 +79,33 @@ builder.Services.AddAutoMapper(cfg => { },
     typeof(DisplayActiveVendors),
     typeof(CreateInvoiceProfile),
     typeof(DisplayInvoiceProfile),
-    typeof(InvoiceItemProfile));
+    typeof(InvoiceItemProfile),
+    typeof(OpenInvoicesForPaymentMapping),
+    typeof(DisplayCashTransactionMapping),
+    typeof(CreateCashTransactionProfile),
+    typeof(DisplayCreditNotesProfile),
+    typeof(DisplayOpeningBalanceProfile),
+    typeof(CreateOpeningBalanceProfile),
+    typeof(DisplayExpenseCategoryProfile),
+    typeof(CreateCashTransactionProfile),
+    typeof(PaymentAllocationProfile),
+    typeof(CreditNoteItemProfile),
+    typeof(MaritimeCompanyMapping));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IVendorService, VendorService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<ICashTransactionService, CashTransactionService>();
+builder.Services.AddScoped<ICreditNoteService, CreditNoteService>();
+builder.Services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
+builder.Services.AddScoped<IExpenseCategoryService, ExpenseCategoryService>();
+builder.Services.AddScoped<IDailyClosingService, DailyClosingService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IStockMovementService, StockMovementService>();
+builder.Services.AddScoped<IMaritimeCompanyService, MaritimeCompanyService>();
 
 var app = builder.Build();
 

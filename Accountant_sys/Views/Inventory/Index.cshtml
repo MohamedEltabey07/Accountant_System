@@ -1,0 +1,211 @@
+@model BLL.DTOs.Inventory.OutGoingData.InventoryDashboardDto
+@{
+    ViewData["Title"] = "مخزون الأسماك المجمدة";
+    var range = Model.IncomingFromDate.HasValue || Model.IncomingToDate.HasValue;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">
+            <i class="bi bi-thermometer-snow text-primary me-2"></i> مخزون الأسماك المجمدة
+        </h3>
+        <p class="text-muted mb-0">الخزانتين تعامَلان كأنهما مخزن واحد: الأرصدة أدناه اجمالية للخزانتي معاً</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a asp-action="StockIn" class="btn btn-success shadow-sm fw-bold">
+            <i class="bi bi-box-arrow-in-down me-1"></i> استلام سمكة
+        </a>
+        <a asp-action="StockOut" class="btn btn-outline-danger shadow-sm fw-bold">
+            <i class="bi bi-box-arrow-up me-1"></i> إخراج سمكة
+        </a>
+        <a asp-action="Adjustment" class="btn btn-outline-warning shadow-sm fw-bold">
+            <i class="bi bi-sliders me-1"></i> تسوية جرد
+        </a>
+        <a asp-action="Movements" class="btn btn-outline-secondary shadow-sm fw-bold">
+            <i class="bi bi-clock-history me-1"></i> حركة المخزون
+        </a>
+        <a asp-action="StockReport" class="btn btn-outline-primary shadow-sm fw-bold">
+            <i class="bi bi-printer me-1"></i> تقرير الرصيد
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body py-3">
+                <small class="text-muted d-block">إجمالي الكراتين المتاحة</small>
+                <h4 class="fw-bold text-primary mb-0">@Model.TotalAvailableCartons.ToString("N3") <small class="fs-6 text-muted">كرتونة</small></h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body py-3">
+                <small class="text-muted d-block">إجمالي الوزن المتاح</small>
+                <h4 class="fw-bold text-success mb-0">@Model.TotalAvailableKg.ToString("N3") <small class="fs-6 text-muted">كجم</small></h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body py-3">
+                <small class="text-muted d-block">
+                    حجم الدخول الحجمي @if (range)
+                    {
+                        <small>(@Model.IncomingFromDate?.ToString("yyyy-MM-dd") → @Model.IncomingToDate?.ToString("yyyy-MM-dd"))</small>
+                    }
+                    else
+                    {
+                        <small>(كل الفترات)</small>
+                    }
+                </small>
+                <h5 class="fw-bold text-info mb-0">@Model.TotalIncomingKg.ToString("N3") <small class="fs-6 text-muted">كجم / @Model.TotalIncomingCartons.ToString("N2") كرتون</small></h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 text-center">
+            <div class="card-body py-3">
+                <small class="text-muted d-block">إجمالي الخروج</small>
+                <h5 class="fw-bold text-danger mb-0">@Model.TotalOutgoingKg.ToString("N3") <small class="fs-6 text-muted">كجم / @Model.TotalOutgoingCartons.ToString("N2") كرتون</small></h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Date range filter -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body p-3">
+        <form method="get" asp-action="Index" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">حركة الدخول/الخروج من تاريخ</label>
+                <input type="date" name="from" value="@(Model.IncomingFromDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">إلى تاريخ</label>
+                <input type="date" name="to" value="@(Model.IncomingToDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">
+                    <i class="bi bi-funnel-fill me-1"></i> اعرض مجموع الدخول والخروج
+                </button>
+                <a asp-action="Index" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> كل الفترات
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Frozen fish items table -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h5 class="card-title mb-0 text-dark">
+            <i class="bi bi-fish me-1"></i> أصناف الأسماك المجمدة بالثلاجات
+        </h5>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('frozenFishTable', 'مخزون_الأسماك_المجمدة')">
+                <i class="bi bi-file-earmark-excel me-1"></i> تصدير Excel
+            </button>
+            <a asp-controller="Product" asp-action="Create" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-plus-lg me-1"></i> إضافة صنف سمك
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-3 border-bottom">
+        <div class="row align-items-center g-2">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" placeholder="بحث فوري باسم صنف السمك..." data-table-search="frozenFishTable" data-counter-target="fishCounter" />
+                </div>
+            </div>
+            <div class="col-md-7 text-md-start">
+                <span class="badge bg-light text-dark border p-2 font-tabular" id="fishCounter">
+                    عرض @Model.Balances.Count من إجمالي @Model.Balances.Count صنف سمك
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.Balances.Count == 0)
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-fish fs-1 d-block mb-2 text-secondary"></i>
+                <h5 class="fw-bold text-dark">لا توجد أصناف أسماك مجمدة بعد</h5>
+                <p class="text-muted small">أضف أصناف من دليل المنتجات واختر تصنيف «سمك مجمد» لبدء متابعة مخزون الثلاجات.</p>
+                <a asp-controller="Product" asp-action="Create" class="btn btn-primary btn-sm mt-2">
+                    <i class="bi bi-plus-lg me-1"></i> إضافة صنف سمك مجمد
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center mb-0" id="frozenFishTable">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="text-start">الصنف</th>
+                            <th>وزن الكرتونة الافتراضي</th>
+                            <th>إجمالي الدخول</th>
+                            <th>إجمالي الخروج</th>
+                            <th>الكراتين المتاحة</th>
+                            <th>الوزن المتاح (كجم)</th>
+                            <th>حالة التوفر</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Balances)
+                        {
+                            <tr>
+                                <td class="text-start fw-bold text-dark">
+                                    @item.ProductName
+                                    @if (!item.IsActive)
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary border ms-1">غير نشط</span>
+                                    }
+                                </td>
+                                <td class="font-tabular text-muted">@(item.DefaultCartonWeightKg?.ToString("N3") ?? "-") كجم</td>
+                                <td class="font-tabular text-success">@item.TotalInKg.ToString("N3") كجم (@item.TotalInCartons.ToString("N2") ك)</td>
+                                <td class="font-tabular text-danger">@item.TotalOutKg.ToString("N3") كجم (@item.TotalOutCartons.ToString("N2") ك)</td>
+                                <td class="font-tabular fw-bold">@item.AvailableCartons.ToString("N3")</td>
+                                <td class="font-tabular fw-bold text-primary">@item.AvailableKg.ToString("N3")</td>
+                                <td>
+                                    @if (item.IsOutOfStock)
+                                    {
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">نفد من المخزون</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">متوفر</span>
+                                    }
+                                </td>
+                                <td>
+                                    <a asp-action="Movements" asp-route-productId="@item.ProductId"
+                                       class="btn btn-sm btn-outline-secondary" title="عرض حركة الصنف">
+                                        <i class="bi bi-clock-history"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Out of stock section -->
+@if (Model.OutOfStockItems.Count > 0)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+            <strong class="fw-bold">أصناف نفدت من المخزون (@Model.OutOfStockItems.Count):</strong>
+            @string.Join("، ", Model.OutOfStockItems.Select(i => i.ProductName))
+        </div>
+    </div>
+}

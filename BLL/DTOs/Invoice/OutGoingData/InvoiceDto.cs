@@ -18,9 +18,14 @@ namespace BLL.DTOs.Invoice.OutGoingData
 
         public int? CustomerId { get; set; }
         public string? CustomerName { get; set; }
+        public CustomerType CustomerType { get; set; }
 
         public int? VendorId { get; set; }
         public string? VendorName { get; set; }
+
+        // Maritime supply only
+        public string? ExternalOrderNumber { get; set; }
+        public DateTime? SupplyOrderDate { get; set; }
 
         public decimal SubTotal { get; set; }
 

@@ -53,11 +53,11 @@ namespace DAL.Repos
             return item;
         }
 
-        public async Task Update(T item)
+        public void Update(T item)
         {
 
-            var checkItem =await FindAsync(item);
-            if (checkItem == false) return;
+            var checkItem = _dbSet.Update(item);
+            if (checkItem.Entity == null) return;
             _dbSet.Update(item);
             return;
         }

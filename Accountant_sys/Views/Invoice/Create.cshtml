@@ -29,9 +29,10 @@
                     <div class="mb-3">
                         <label asp-for="Type" class="form-label fw-bold">نوع الفاتورة <span class="text-danger">*</span></label>
                         <select asp-for="Type" class="form-select form-select-lg" id="invoiceTypeSelect">
-                            <option value="@((int)InvoiceType.WholesaleSales)">مبيعات جملة (تتطلب عميل)</option>
+                            <option value="@((int)InvoiceType.WholesaleSales)">مبيعات جملة (تتطلب عميل جملة)</option>
                             <option value="@((int)InvoiceType.VendorPurchase)">مشتريات من مورد (تتطلب مورد)</option>
                             <option value="@((int)InvoiceType.StoreCashSales)">مبيعات تجزئة نقدي (بدون طرف)</option>
+                            <option value="@((int)InvoiceType.MaritimeSupply)">توريد لشركة بحرية (تتطلب شركة بحرية)</option>
                         </select>
                         <span asp-validation-for="Type" class="text-danger small"></span>
                     </div>
@@ -51,6 +52,38 @@
                         </select>
                         <span asp-validation-for="CustomerId" class="text-danger small"></span>
                         <div class="form-text">فواتير مبيعات الجملة يتم ترحيلها إلى حساب العميل المختار.</div>
+                    </div>
+
+                    <!-- Maritime Company Selector (MaritimeSupply) -->
+                    <div class="mb-3" id="maritimeGroup" style="display:none;">
+                        <label class="form-label fw-bold">الشركة البحرية <span class="text-danger">*</span></label>
+                        <select asp-for="CustomerId" class="form-select" asp-items="ViewBag.MaritimeCompanies" id="maritimeCompanySelect">
+                            <option value="">-- اختر الشركة البحرية --</option>
+                        </select>
+                        <span asp-validation-for="CustomerId" class="text-danger small"></span>
+                        <div class="form-text">أوامر التوريد للشركات البحرية تُرحّل إلى حساب الشركة المختار عند التسليم الفعلي.</div>
+                    </div>
+
+                    <!-- Maritime external order fields -->
+                    <div id="maritimeOrderFields" style="display:none;">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="ExternalOrderNumber" class="form-label fw-bold">رقم أمر التوريد الخارجي (من الشركة) <span class="text-danger">*</span></label>
+                                <input asp-for="ExternalOrderNumber" type="text" class="form-control" placeholder="مثال: ORDER-2026-015" />
+                                <span asp-validation-for="ExternalOrderNumber" class="text-danger small"></span>
+                                <div class="form-text">رقم أمر التوريد كما ورد من الشركة البحرية (مختلف عن رقم الفاتورة الداخلي MAR-####).</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="SupplyOrderDate" class="form-label fw-bold">تاريخ أمر التوريد</label>
+                                <input asp-for="SupplyOrderDate" type="date" class="form-control" />
+                                <span asp-validation-for="SupplyOrderDate" class="text-danger small"></span>
+                            </div>
+                        </div>
+                        <div class="alert alert-info py-2">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            بنود أمر التوريد تُدخل بـ<strong>الوزن بالكجم وسعر الكجم</strong>. لا يخصم المخزون عند إنشاء المسودة؛
+                            المخزون يُخصم من الثلاجات فقط عند الترحيل (التعرف على التسليم الفعلي) بعد التحقق من توفر الكمية.
+                        </div>
                     </div>
 
                     <!-- Vendor Selector (Purchase) -->
@@ -109,23 +142,44 @@
             var vendorPurchase = @((int)InvoiceType.VendorPurchase);
             var wholesaleSales = @((int)InvoiceType.WholesaleSales);
             var storeCashSales = @((int)InvoiceType.StoreCashSales);
+            var maritimeSupply = @((int)InvoiceType.MaritimeSupply);
 
             if (selectedType === vendorPurchase) {
                 $('#vendorGroup').show();
                 $('#customerGroup').hide();
+                $('#maritimeGroup').hide();
+                $('#maritimeOrderFields').hide();
                 $('#retailNote').hide();
                 $('#CustomerId').val('');
             } else if (selectedType === wholesaleSales) {
                 $('#customerGroup').show();
                 $('#vendorGroup').hide();
+                $('#maritimeGroup').hide();
+                $('#maritimeOrderFields').hide();
                 $('#retailNote').hide();
                 $('#VendorId').val('');
+                // Two selects bind CustomerId; keep only the visible one enabled so MVC binds correctly.
+                $('#maritimeCompanySelect').prop('disabled', true);
+                $('#customerGroup select').prop('disabled', false);
+            } else if (selectedType === maritimeSupply) {
+                $('#maritimeGroup').show();
+                $('#customerGroup').hide();
+                $('#maritimeOrderFields').show();
+                $('#vendorGroup').hide();
+                $('#retailNote').hide();
+                $('#VendorId').val('');
+                $('#maritimeCompanySelect').prop('disabled', false);
+                $('#customerGroup select').prop('disabled', true);
             } else {
                 $('#customerGroup').hide();
                 $('#vendorGroup').hide();
+                $('#maritimeGroup').hide();
+                $('#maritimeOrderFields').hide();
                 $('#retailNote').show();
                 $('#CustomerId').val('');
                 $('#VendorId').val('');
+                $('#maritimeCompanySelect').prop('disabled', true);
+                $('#customerGroup select').prop('disabled', false);
             }
         }
 

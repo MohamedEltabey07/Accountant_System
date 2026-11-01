@@ -1,0 +1,310 @@
+@model BLL.DTOs.Cash.OutGoingData.CashTransactionDto
+@using System.Linq
+@{
+    var isVoucherIn = Model.Direction == DAL.Enums.CashDirection.In;
+    var voucherTitle = (string)ViewBag.VoucherTitle ?? (isVoucherIn ? "سند قبض نقدي" : "سند صرف نقدي");
+    ViewData["Title"] = voucherTitle + " رقم #" + Model.Id.ToString("D6");
+}
+
+@functions {
+    // Professional Arabic Tafqeet (Number to Words)
+    private static readonly string[] Ones = { "", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر" };
+    private static readonly string[] Tens = { "", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون" };
+    private static readonly string[] Hundreds = { "", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة" };
+
+    public static string ToArabicWords(decimal amount)
+    {
+        if (amount == 0) return "صفر جنيه مصري لا غير";
+        long integerPart = (long)Math.Floor(amount);
+        int decimalPart = (int)Math.Round((amount - integerPart) * 100);
+
+        string words = ConvertGroup(integerPart);
+        string result = "فقط " + words + " جنيهاً مصرياً";
+        if (decimalPart > 0)
+        {
+            result += " و " + ConvertGroup(decimalPart) + " قرشاً";
+        }
+        result += " لا غير";
+        return result;
+    }
+
+    private static string ConvertGroup(long number)
+    {
+        if (number == 0) return "";
+        if (number < 20) return Ones[number];
+        if (number < 100)
+        {
+            long unit = number % 10;
+            long ten = number / 10;
+            return (unit > 0 ? Ones[unit] + " و " : "") + Tens[ten];
+        }
+        if (number < 1000)
+        {
+            long rem = number % 100;
+            long hundred = number / 100;
+            return Hundreds[hundred] + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        if (number < 1000000)
+        {
+            long rem = number % 1000;
+            long thousands = number / 1000;
+            string thText = thousands == 1 ? "ألف" : (thousands == 2 ? "ألفان" : (thousands <= 10 ? ConvertGroup(thousands) + " آلاف" : ConvertGroup(thousands) + " ألفاً"));
+            return thText + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        long millRem = number % 1000000;
+        long millions = number / 1000000;
+        string millText = millions == 1 ? "مليون" : (millions == 2 ? "مليونان" : (millions <= 10 ? ConvertGroup(millions) + " ملايين" : ConvertGroup(millions) + " مليوناً"));
+        return millText + (millRem > 0 ? " و " + ConvertGroup(millRem) : "");
+    }
+}
+
+<style>
+    /* ==========================================================================
+       A4 Printable Payment Voucher Stylesheet
+       ========================================================================== */
+    @@page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
+    }
+
+    .voucher-sheet {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e2e8f0;
+        padding: 2.5rem;
+    }
+
+    @@media print {
+        html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 12px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .d-print-none,
+        .sidebar,
+        .top-navbar,
+        .btn {
+            display: none !important;
+        }
+
+        .main-content,
+        .content-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+        }
+
+        .voucher-sheet {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .voucher-header,
+        .voucher-amount-box,
+        .voucher-allocations-table,
+        .voucher-signatures {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    }
+</style>
+
+<!-- Action Toolbar (Hidden in Print) -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2 d-print-none">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-right me-1"></i> رجوع للمدفوعات
+        </a>
+        <h4 class="mb-0 fw-bold text-dark">
+            <i class="bi @(isVoucherIn ? "bi-cash-coin text-success" : "bi-wallet2 text-danger") me-1"></i>
+            @voucherTitle رقم #@Model.Id.ToString("D6")
+        </h4>
+        <span class="badge @(isVoucherIn ? "bg-success" : "bg-danger") fs-6">
+            @(isVoucherIn ? "سند قبض معتمد" : "سند صرف معتمد")
+        </span>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary shadow-sm fw-bold" onclick="window.print()">
+            <i class="bi bi-printer-fill me-1"></i> طباعة السند (A4)
+        </button>
+        <a asp-action="@(isVoucherIn ? "CustomerPayment" : "VendorPayment")" class="btn btn-outline-primary">
+            <i class="bi bi-plus-lg me-1"></i> سند جديد
+        </a>
+    </div>
+</div>
+
+<!-- ==========================================================================
+     OFFICIAL A4 VOUCHER SHEET
+     ========================================================================== -->
+<div class="voucher-sheet">
+
+    <!-- Commercial Header -->
+    <div class="voucher-header pb-3 mb-4 border-bottom">
+        <div class="row align-items-center g-3">
+            <div class="col-7">
+                <h3 class="fw-bold text-dark mb-1">
+                    <i class="bi bi-calculator-fill text-primary me-1"></i> مؤسسة التجارة والتوريدات
+                </h3>
+                <div class="text-muted small">نظام إدارة الحسابات، الخزينة، والمبيعات</div>
+                <div class="text-muted small mt-1">
+                    <span><strong>س.ت:</strong> 104928</span> | 
+                    <span><strong>ب.ض:</strong> 482-901-332</span>
+                </div>
+                <div class="text-muted small">
+                    <i class="bi bi-geo-alt me-1"></i> مصر - المركز الرئيسي | هاتف: 01000000000
+                </div>
+            </div>
+
+            <div class="col-5 text-start">
+                <div class="p-2 rounded bg-light border text-center d-inline-block px-3">
+                    <div class="small text-muted">نوع المستند المالي</div>
+                    <h5 class="fw-bold mb-0 @(isVoucherIn ? "text-success" : "text-danger")">
+                        @(isVoucherIn ? "سند قبض نقدي رسمي" : "سند صرف نقدي رسمي")
+                    </h5>
+                    <div class="font-monospace fw-bold fs-6 mt-1 text-dark">
+                        #VCH-@Model.Id.ToString("D6")
+                    </div>
+                </div>
+                <div class="small text-muted mt-2 text-start">
+                    <span>التاريخ: <strong>@Model.TransactionDate.ToString("yyyy-MM-dd")</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Amount Highlight Box -->
+    <div class="voucher-amount-box p-3 rounded-3 border mb-4 @(isVoucherIn ? "bg-success-subtle border-success" : "bg-danger-subtle border-danger")">
+        <div class="row align-items-center">
+            <div class="col-md-5 border-start">
+                <span class="text-muted small fw-bold d-block mb-1">المبلغ المسدد بالأرقام:</span>
+                <div class="display-6 fw-bold font-tabular @(isVoucherIn ? "text-success" : "text-danger")">
+                    @Model.Amount.ToString("N2") <small class="fs-5">ج.م</small>
+                </div>
+            </div>
+            <div class="col-md-7 ps-md-4">
+                <span class="text-muted small fw-bold d-block mb-1">المبلغ بالحروف والتفقيط:</span>
+                <div class="fw-bold fs-5 text-dark">
+                    @ToArabicWords(Model.Amount)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Party Details Card -->
+    <div class="p-3 rounded-3 border bg-light mb-4">
+        <div class="row g-3">
+            <div class="col-md-7 border-start">
+                <small class="text-muted fw-bold d-block mb-1">
+                    @(isVoucherIn ? "استلمنا من السيد / المحترم:" : "صرفنا إلى السيد / المحترم:")
+                </small>
+                <h4 class="fw-bold text-dark mb-1">
+                    @(isVoucherIn ? (Model.CustomerName ?? "عميل نقدي") : (Model.VendorName ?? "مورد غير محدد"))
+                </h4>
+                @if (isVoucherIn && Model.CustomerId.HasValue)
+                {
+                    <div class="small text-muted">كود حساب العميل: #CST-@Model.CustomerId.Value.ToString("D4")</div>
+                }
+                else if (!isVoucherIn && Model.VendorId.HasValue)
+                {
+                    <div class="small text-muted">كود حساب المورد: #VND-@Model.VendorId.Value.ToString("D4")</div>
+                }
+            </div>
+
+            <div class="col-md-5">
+                <small class="text-muted fw-bold d-block mb-1">طريقة المعاملة:</small>
+                <div class="fw-bold text-dark mb-1">
+                    <i class="bi bi-cash-stack text-success me-1"></i> سداد نقدي بخزينة المؤسسة
+                </div>
+                <div class="small text-muted">
+                    حالة السند: <strong>مرحّل ومعتمد محاسبياً بالدفاتر</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settled Invoices Allocations Table (If Any) -->
+    @if (Model.Allocations != null && Model.Allocations.Count > 0)
+    {
+        <div class="voucher-allocations-table mb-4">
+            <h6 class="fw-bold text-dark mb-2">
+                <i class="bi bi-list-check text-primary me-1"></i> الفواتير والأوامر المسددة بموجب هذا السند:
+            </h6>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle text-center mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>رقم الفاتورة / أمر التوريد</th>
+                            <th>المبلغ المسدد المخصص</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < Model.Allocations.Count; i++)
+                        {
+                            <tr>
+                                <td class="text-muted fw-bold">@(i + 1)</td>
+                                <td class="fw-bold font-monospace text-dark">@Model.Allocations[i].InvoiceNumber</td>
+                                <td class="fw-bold font-tabular text-success">@Model.Allocations[i].Amount.ToString("N2") ج.م</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="2" class="text-end">إجمالي التسويات المخصصة:</td>
+                            <td class="font-tabular text-success fs-6">@Model.Allocations.Sum(a => a.Amount).ToString("N2") ج.م</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Notes -->
+    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+    {
+        <div class="p-3 bg-light rounded-3 border mb-4">
+            <small class="text-muted fw-bold d-block mb-1"><i class="bi bi-chat-left-text me-1"></i> البيان والملاحظات:</small>
+            <p class="mb-0 text-dark">@Model.Notes</p>
+        </div>
+    }
+
+    <!-- Dual Signature Blocks -->
+    <div class="voucher-signatures pt-4 border-top mt-5">
+        <div class="row text-center">
+            <div class="col-6">
+                <div class="text-muted small mb-4">
+                    @(isVoucherIn ? "توقيع الدافع (المسلّم)" : "توقيع المستلم للدفعة")
+                </div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-5">
+                    ............................................................
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="text-muted small mb-4">توقيع أمين الخزينة / الحسابات (المعتمد)</div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-5">
+                    ............................................................
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center text-muted small mt-4 pt-2 border-top">
+            <p class="mb-0">
+                • يعتبر هذا السند إيصالاً رسمياً بالمبلغ المذكور أعلاه بعد توقيع واعتماد أمين الخزينة.
+                • شكراً لتعاملكم معنا!
+            </p>
+        </div>
+    </div>
+</div>

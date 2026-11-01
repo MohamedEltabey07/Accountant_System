@@ -12,5 +12,9 @@ namespace DAL.IRepos
         public Task<string> GetNextInvoiceNumberAsync(InvoiceType type);
         public Task<List<Invoice>> GetUnsettledInvoicesByCustomerAsync(int customerId);
         public Task<List<Invoice>> GetUnsettledInvoicesByVendorAsync(int vendorId);
+        public Task<List<Invoice>> GetCustomerOpenInvoices(int customerId);
+        public  Task<List<Invoice>> GetVendorOpenInvoices(int vendorId);
+        public Task<List<Invoice>> GetAllPostedInvoices();
+
     }
 }

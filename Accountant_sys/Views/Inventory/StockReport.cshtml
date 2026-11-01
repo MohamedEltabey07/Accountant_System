@@ -1,0 +1,243 @@
+@model List<BLL.DTOs.Inventory.OutGoingData.StockBalanceDto>
+@{
+    ViewData["Title"] = "تقرير رصيد المخزون الحالي";
+}
+
+<style>
+    /* ==========================================================================
+       A4 Printable Stock Report Stylesheet
+       ========================================================================== */
+    @@page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
+    }
+
+    .report-sheet {
+        max-width: 920px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e2e8f0;
+        padding: 2.25rem;
+    }
+
+    .table-stock-report {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-stock-report thead {
+        display: table-header-group;
+    }
+
+    .table-stock-report tfoot {
+        display: table-footer-group;
+    }
+
+    .table-stock-report th {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.75rem 0.6rem;
+        border: 1px solid #0f172a;
+        text-align: center;
+    }
+
+    .table-stock-report td {
+        padding: 0.65rem 0.6rem;
+        border: 1px solid #cbd5e1;
+        font-size: 0.88rem;
+        vertical-align: middle;
+    }
+
+    @@media print {
+        html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 11.5px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .d-print-none,
+        .sidebar,
+        .top-navbar,
+        .btn {
+            display: none !important;
+        }
+
+        .main-content,
+        .content-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+        }
+
+        .report-sheet {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .report-header,
+        .report-signatures,
+        tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    }
+</style>
+
+<!-- Top Toolbar (Hidden on Print) -->
+<div class="d-print-none d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">
+            <i class="bi bi-clipboard-data text-primary me-2"></i> تقرير رصيد مخزون الثلاجات
+        </h3>
+        <p class="text-muted mb-0">الرصيد الفعلي الحالي المستخرج من سجل حركات المخزون الكامل بتاريخ اليوم</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-success shadow-sm" onclick="exportTableToCSV('stockReportTable', 'تقرير_أرصدة_مخزون_الثلاجات')">
+            <i class="bi bi-file-earmark-excel me-1"></i> تصدير Excel
+        </button>
+        <button type="button" class="btn btn-primary shadow-sm fw-bold" onclick="window.print()">
+            <i class="bi bi-printer-fill me-1"></i> طباعة التقرير (A4)
+        </button>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-right me-1"></i> رجوع
+        </a>
+    </div>
+</div>
+
+<!-- ==========================================================================
+     OFFICIAL A4 STOCK REPORT SHEET
+     ========================================================================== -->
+<div class="report-sheet">
+
+    <!-- Commercial Header -->
+    <div class="report-header border-bottom pb-4 mb-4">
+        <div class="row align-items-center g-3">
+            <div class="col-7">
+                <h3 class="fw-bold text-dark mb-1">
+                    <i class="bi bi-shield-check text-primary me-1"></i> مؤسسة التجارة والتوريدات
+                </h3>
+                <div class="text-muted small">إدارة مخازن وثلاجات الأسماك المجمدة والتوريدات البحرية</div>
+                <div class="text-muted small mt-1">
+                    <span><strong>س.ت:</strong> 104928</span> | 
+                    <span><strong>ب.ض:</strong> 482-901-332</span>
+                </div>
+            </div>
+
+            <div class="col-5 text-start">
+                <div class="p-2 rounded bg-light border text-center d-inline-block px-3">
+                    <div class="small text-muted">تقرير رسمي معتمد</div>
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-thermometer-snow text-primary me-1"></i> جرد ورصيد الثلاجات
+                    </h5>
+                    <div class="small text-muted mt-1">
+                        تاريخ التقرير: <strong>@DateTime.Today.ToString("yyyy-MM-dd")</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Search Toolbar (Screen Only) -->
+    <div class="d-print-none mb-3">
+        <div class="row align-items-center g-2">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" placeholder="بحث فوري في التقرير باسم الصنف..." data-table-search="stockReportTable" data-counter-target="reportCounter" />
+                </div>
+            </div>
+            <div class="col-md-7 text-md-start">
+                <span class="badge bg-light text-dark border p-2 font-tabular" id="reportCounter">
+                    عرض @Model.Count من إجمالي @Model.Count صنف سمك
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock Balances Table -->
+    <div class="table-responsive mb-4">
+        <table class="table-stock-report align-middle text-center mb-0" id="stockReportTable">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">#</th>
+                    <th class="text-start">صنف السمك المجمد</th>
+                    <th>وزن/كرتونة</th>
+                    <th>إجمالي الدخول</th>
+                    <th>إجمالي الخروج</th>
+                    <th>الكراتين المتاحة</th>
+                    <th>الوزن المتاح (كجم)</th>
+                    <th>حالة التوفر</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Count == 0)
+                {
+                    <tr>
+                        <td colspan="8" class="text-muted text-center py-5">
+                            لا توجد أصناف أسماك مجمدة مسجلة بعد.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    int rowIdx = 1;
+                    foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="text-muted fw-bold">@(rowIdx++)</td>
+                            <td class="text-start fw-bold text-dark">@item.ProductName</td>
+                            <td class="font-tabular text-muted">@(item.DefaultCartonWeightKg?.ToString("N3") ?? "-") كجم</td>
+                            <td class="font-tabular text-success">@item.TotalInCartons.ToString("N2") ك / @item.TotalInKg.ToString("N3") كجم</td>
+                            <td class="font-tabular text-danger">@item.TotalOutCartons.ToString("N2") ك / @item.TotalOutKg.ToString("N3") كجم</td>
+                            <td class="font-tabular fw-bold text-dark">@item.AvailableCartons.ToString("N3")</td>
+                            <td class="font-tabular fw-bold text-primary">@item.AvailableKg.ToString("N3")</td>
+                            <td>
+                                @if (item.IsOutOfStock)
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">نفد من المخزن</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">متوفر</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold bg-light">
+                    <td colspan="5" class="text-end py-2">إجمالي رصيد المخزون المتاح (الخزانتان معاً):</td>
+                    <td class="font-tabular text-dark py-2">@Model.Sum(x => x.AvailableCartons).ToString("N3") كرتونة</td>
+                    <td class="font-tabular text-primary py-2">@Model.Sum(x => x.AvailableKg).ToString("N3") كجم</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Dual Signature Blocks -->
+    <div class="report-signatures row mt-5 pt-4 border-top text-center">
+        <div class="col-6">
+            <p class="text-muted mb-4 small">أمين الثلاجة والمخزن (المسلّم)</p>
+            <p class="border-bottom d-inline-block px-5 pb-1">........................................</p>
+        </div>
+        <div class="col-6">
+            <p class="text-muted mb-4 small">مسؤول الجرد والمراجعة (المعتمد)</p>
+            <p class="border-bottom d-inline-block px-5 pb-1">........................................</p>
+        </div>
+    </div>
+</div>

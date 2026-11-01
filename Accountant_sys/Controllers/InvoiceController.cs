@@ -1,3 +1,4 @@
+using BLL.DTOs.CreditNote.OutGoingData;
 using BLL.DTOs.Customer.OutGoingData;
 using BLL.DTOs.Invoice.InComingData;
 using BLL.DTOs.Product.OutGoingData;
@@ -15,14 +16,19 @@ namespace Accountant_sys.Controllers
         private readonly IProductService _productService;
         private readonly ICustomerService _customerService;
         private readonly IVendorService _vendorService;
+        private readonly ICreditNoteService _creditNoteService;
+        private readonly IMaritimeCompanyService _maritimeCompanyService;
 
         public InvoiceController(IInvoiceService invoiceService, IProductService productService,
-            ICustomerService customerService, IVendorService vendorService)
+            ICustomerService customerService, IVendorService vendorService, ICreditNoteService creditNoteService,
+            IMaritimeCompanyService maritimeCompanyService)
         {
             _invoiceService = invoiceService;
             _productService = productService;
             _customerService = customerService;
             _vendorService = vendorService;
+            _creditNoteService = creditNoteService;
+            _maritimeCompanyService = maritimeCompanyService;
         }
 
         // ==========================================
@@ -65,7 +71,26 @@ namespace Accountant_sys.Controllers
             var invoice = await _invoiceService.GetInvoiceByIdAsync(id);
             if (invoice == null) return NotFound();
 
-            await PrepareProductSelectList();
+            var allNotes = await _creditNoteService.GetCreditNotesAsync(null, null, DateTime.Now.AddYears(-5), DateTime.Now.AddYears(1));
+            var invoiceCreditNotes = (allNotes ?? new List<CreditNoteDto>())
+                .Where(cn => cn.OriginalInvoiceId == id)
+                .ToList();
+
+            ViewBag.CreditNotes = invoiceCreditNotes;
+
+            var returnedQuantities = invoiceCreditNotes
+                .Where(cn => cn.Status == CreditNoteStatus.Posted)
+                .SelectMany(cn => cn.Items)
+                .GroupBy(i => i.ProductId)
+                .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+
+            ViewBag.ReturnedQuantities = returnedQuantities;
+
+            ViewBag.TotalReturnedAmount = invoiceCreditNotes
+                .Where(cn => cn.Status == CreditNoteStatus.Posted)
+                .Sum(cn => cn.TotalAmount);
+
+            await PrepareProductSelectList(invoice.Type);
             return View(invoice);
         }
 
@@ -95,14 +120,21 @@ namespace Accountant_sys.Controllers
             if (!ModelState.IsValid)
                 return View(dto);
 
-            var draftId = await _invoiceService.CreateDraftInvoiceAsync(dto);
-            if (draftId > 0)
-                return RedirectToAction(nameof(Details), new { id = draftId });
+            try
+            {
+                var draftId = await _invoiceService.CreateDraftInvoiceAsync(dto);
+                if (draftId > 0)
+                    return RedirectToAction(nameof(Details), new { id = draftId });
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(dto);
+            }
 
-            ModelState.AddModelError(string.Empty, "تحقق من نوع الفاتورة: فاتورة الشراء تتطلب موردًا، فاتورة الجملة تتطلب عميلًا، والبيع بالتجزئة بدون طرف.");
+            ModelState.AddModelError(string.Empty, "تعذّر إنشاء المسودة. تحقق من صحة البيانات وحاول مرة أخرى.");
             return View(dto);
         }
-
         // ==========================================
         // ADD ITEM TO DRAFT
         // ==========================================
@@ -116,10 +148,13 @@ namespace Accountant_sys.Controllers
                 return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
             }
 
-            var result = await _invoiceService.AddItemToDraftAsync(dto);
-            if (!result)
+            try
             {
-                TempData["ErrorMessage"] = "تعذر إضافة البند. تأكد من أن الفاتورة مسودة والمنتج موجود.";
+                await _invoiceService.AddItemToDraftAsync(dto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["ErrorMessage"] = $"تعذر إضافة البند: {ex.Message}";
             }
 
             return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
@@ -169,14 +204,21 @@ namespace Accountant_sys.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Post(int id)
         {
-            var result = await _invoiceService.PostInvoiceAsync(id);
-            if (result)
+            try
             {
-                TempData["SuccessMessage"] = "تم ترحيل الفاتورة بنجاح.";
+                var result = await _invoiceService.PostInvoiceAsync(id);
+                if (result)
+                {
+                    TempData["SuccessMessage"] = "تم ترحيل الفاتورة بنجاح واعتمادها في الحسابات.";
+                }
+                else
+                {
+                    TempData["ErrorMessage"] = "تعذر ترحيل الفاتورة. يجب أن تكون مسودة وتحتوي على بند واحد على الأقل.";
+                }
             }
-            else
+            catch (InvalidOperationException ex)
             {
-                TempData["ErrorMessage"] = "تعذر ترحيل الفاتورة. يجب أن تكون مسودة وتحتوي على بند واحد على الأقل.";
+                TempData["ErrorMessage"] = ex.Message;
             }
 
             return RedirectToAction(nameof(Details), new { id });
@@ -207,11 +249,19 @@ namespace Accountant_sys.Controllers
             if (!ModelState.IsValid)
                 return View(dto);
 
-            var result = await _invoiceService.CancelPostedInvoiceAsync(dto);
-            if (result)
+            try
             {
-                TempData["SuccessMessage"] = "تم إلغاء الفاتورة بنجاح.";
-                return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
+                var result = await _invoiceService.CancelPostedInvoiceAsync(dto);
+                if (result)
+                {
+                    TempData["SuccessMessage"] = "تم إلغاء الفاتورة بنجاح. (أوامر التوريد البحرية: أُعيدت الكميات للمخزون بحركات عكسية سجّلت في السجل).";
+                    return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(dto);
             }
 
             ModelState.AddModelError(string.Empty, "تعذر إلغاء الفاتورة. لا يمكن إلغاء فاتورة لها مدفوعات أو مرتجعات مسجلة.");
@@ -235,14 +285,20 @@ namespace Accountant_sys.Controllers
         {
             var customers = await _customerService.GetActiveCustomersAsync() ?? new List<CustomerDto>();
             var vendors = await _vendorService.GetActiveVendorAsync() ?? new List<VendorDto>();
+            var maritimeCompanies = await _maritimeCompanyService.GetActiveCompaniesAsync()
+                ?? new List<BLL.DTOs.MaritimeCompany.OutGoingData.MaritimeCompanyDto>();
 
             ViewBag.Customers = new SelectList(customers, "Id", "Name");
             ViewBag.Vendors = new SelectList(vendors, "Id", "Name");
+            ViewBag.MaritimeCompanies = new SelectList(maritimeCompanies, "Id", "Name");
         }
 
-        private async Task PrepareProductSelectList()
+        private async Task PrepareProductSelectList(InvoiceType invoiceType)
         {
-            var products = await _productService.GetActiveProductsAsync() ?? new List<ProductDto>();
+            // Maritime supply orders accept frozen fish items only.
+            var products = invoiceType == InvoiceType.MaritimeSupply
+                ? await _productService.GetProductsByCategoryAsync(ProductCategory.FrozenFish) ?? new List<ProductDto>()
+                : await _productService.GetActiveProductsAsync() ?? new List<ProductDto>();
             ViewBag.Products = new SelectList(products, "Id", "Name");
         }
 
@@ -250,10 +306,11 @@ namespace Accountant_sys.Controllers
         {
             return new SelectList(new List<SelectListItem>
             {
-                new SelectListItem { Value = "", Text = "كل الأنواع" },
+                new SelectListItem { Value = "", Text = "كل أنواع الفواتير" },
                 new SelectListItem { Value = ((int)InvoiceType.VendorPurchase).ToString(), Text = "مشتريات من مورد" },
-                new SelectListItem { Value = ((int)InvoiceType.WholesaleSales).ToString(), Text = "بيع بالجملة" },
-                new SelectListItem { Value = ((int)InvoiceType.StoreCashSales).ToString(), Text = "بيع بالتجزئة" }
+                new SelectListItem { Value = ((int)InvoiceType.WholesaleSales).ToString(), Text = "مبيعات جملة" },
+                new SelectListItem { Value = ((int)InvoiceType.StoreCashSales).ToString(), Text = "مبيعات تجزئة" },
+                new SelectListItem { Value = ((int)InvoiceType.MaritimeSupply).ToString(), Text = "توريد لشركة بحرية" }
             }, "Value", "Text", selected.HasValue ? (int?)selected.Value : null);
         }
 

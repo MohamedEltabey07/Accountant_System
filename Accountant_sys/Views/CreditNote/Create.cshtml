@@ -1,0 +1,156 @@
+@model BLL.DTOs.CreditNote.InComingData.CreateCreditNoteDraftDto
+@using Accountant_sys.Models
+@using System.Globalization
+@{
+    var lines = ViewBag.Lines as List<CreditNoteLineViewModel>;
+    var hasInvoice = ViewBag.SelectedInvoiceId != null && (int)ViewBag.SelectedInvoiceId > 0 && lines != null && lines.Count > 0;
+    ViewData["Title"] = "إنشاء مرتجع";
+}
+
+<h4 class="mb-3"><i class="bi bi-arrow-return-left me-2"></i> إنشاء مرتجع (مسودة)</h4>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end" asp-controller="CreditNote" asp-action="Create">
+            <div class="col-md-9">
+                <label class="form-label">الفاتورة المرحلة ( Posted Invoice )</label>
+                @if (ViewBag.PostedInvoices != null && ((SelectList)ViewBag.PostedInvoices).Count() > 0)
+                {
+                    <select name="invoiceId" class="form-select">
+                        <option value="">-- اختر الفاتورة --</option>
+                        @foreach (var item in (SelectList)ViewBag.PostedInvoices)
+                        {
+                            <option value="@item.Value" selected="@(item.Value == ViewBag.SelectedInvoiceId?.ToString())">@item.Text</option>
+                        }
+                    </select>
+                }
+                else
+                {
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        لا توجد فواتير مرحلة بعد. يجب ترحيل فاتورة أولًا قبل إنشاء مرتجع لها.
+                    </div>
+                }
+            </div>
+            <div class="col-md-3 text-end">
+                <button type="submit" class="btn btn-primary" @(ViewBag.PostedInvoices != null && ((SelectList)ViewBag.PostedInvoices).Count() > 0 ? "" : "disabled")>
+                    <i class="bi bi-envelope-open me-1"></i> تحميل بنود الفاتورة
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (hasInvoice)
+{
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <form asp-action="Create" method="post" id="creditNoteForm">
+                <input type="hidden" asp-for="OriginalInvoiceId" />
+
+                <div class="row">
+                    <div class="col-md-3">
+                        <label asp-for="TransactionDate" class="form-label">تاريخ المرتجع</label>
+                        <input asp-for="TransactionDate" type="date" class="form-control" />
+                        <span asp-validation-for="TransactionDate" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-9">
+                        <label asp-for="Reason" class="form-label">سبب الإرجاع (السبب الرئيسي)</label>
+                        <input asp-for="Reason" class="form-control" placeholder="مثال: منتج تالف / عدم مطابقة" />
+                        <span asp-validation-for="Reason" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <table class="table table-bordered table-hover align-middle text-center">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:60px">إرجاع</th>
+                                <th>المنتج</th>
+                                <th>الكمية الأصلية</th>
+                                <th>المرتجع مسبقًا</th>
+                                <th>الحد الأقصى المسموح</th>
+                                <th style="width:140px">الكمية المرتجعة</th>
+                                <th>سعر الوحدة</th>
+                                <th>الإجمالي المرتجع</th>
+                                <th style="width:160px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="idLinesBody">
+                            @for (int i = 0; i < lines.Count; i++)
+                            {
+                                var line = lines[i];
+                                var disabled = line.MaxReturnable <= 0;
+                                <tr data-unit-price="@line.UnitPrice.ToString(CultureInfo.InvariantCulture)">
+                                    <td>
+                                        @if (!disabled)
+                                        {
+                                            <input type="checkbox" class="form-check-input fs-5 line-check" data-index="@i" />
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" title="تم إرجاع الكمية بالكامل">—</span>
+                                        }
+                                        <input type="hidden" class="line-product" value="@line.ProductId" />
+                                    </td>
+                                    <td class="fw-bold">@line.ProductName</td>
+                                    <td>@line.OriginalQuantity.ToString("N2")</td>
+                                    <td>@line.AlreadyReturned.ToString("N2")</td>
+                                    <td class="fw-bold @(disabled ? "text-muted" : "text-danger")">
+                                        @line.MaxReturnable.ToString("N2")
+                                    </td>
+                                    <td>
+                                        @if (!disabled)
+                                        {
+                                            <input type="number" step="0.01" min="0.01" max="@line.MaxReturnable.ToString("0.######", CultureInfo.InvariantCulture)" class="form-control form-control-sm text-center line-qty"
+                                                   disabled />
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">0</span>
+                                        }
+                                    </td>
+                                    <td>@line.UnitPrice.ToString("N2")</td>
+                                    <td class="line-total">0.00</td>
+                                    <td class="text-danger small line-error"></td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light">
+                                <td colspan="7" class="fw-bold text-end">الإجمالي</td>
+                                <td class="fw-bold" id="idGrandTotal">0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="idSubmitBtn">
+                    <i class="bi bi-save me-1"></i> حفظ المرتجع كمسودة
+                </button>
+                <a asp-action="Index" class="btn btn-outline-secondary">رجوع</a>
+            </form>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    @if (hasInvoice)
+    {
+        <script src="~/js/creditnote-form.js"></script>
+        <script>
+            initCreditNoteForm({
+                formId: 'creditNoteForm',
+                submitBtnId: 'idSubmitBtn',
+                grandTotalId: 'idGrandTotal',
+                confirmTitle: 'إنشاء مسودة مرتجع',
+                confirmText: 'سيتم إنشاء مرتجع كمسودة يمكن مراجعته وترحيله لاحقًا. لن يتأثر رصيد الفاتورة حتى الترحيل.',
+                confirmButtonText: 'نعم، احفظ المسودة'
+            });
+        </script>
+    }
+}

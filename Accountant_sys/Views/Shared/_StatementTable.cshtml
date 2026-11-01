@@ -1,0 +1,496 @@
+@model Accountant_sys.Models.StatementViewModel
+@using System.Globalization
+
+@functions {
+    // Professional Arabic Tafqeet (Number to Words) for Account Statements
+    private static readonly string[] Ones = { "", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر" };
+    private static readonly string[] Tens = { "", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون" };
+    private static readonly string[] Hundreds = { "", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة" };
+
+    public static string ToArabicWords(decimal amount)
+    {
+        if (amount == 0) return "صفر جنيه مصري لا غير";
+        long integerPart = (long)Math.Floor(amount);
+        int decimalPart = (int)Math.Round((amount - integerPart) * 100);
+
+        string words = ConvertGroup(integerPart);
+        string result = "فقط " + words + " جنيهاً مصرياً";
+        if (decimalPart > 0)
+        {
+            result += " و " + ConvertGroup(decimalPart) + " قرشاً";
+        }
+        result += " لا غير";
+        return result;
+    }
+
+    private static string ConvertGroup(long number)
+    {
+        if (number == 0) return "";
+        if (number < 20) return Ones[number];
+        if (number < 100)
+        {
+            long unit = number % 10;
+            long ten = number / 10;
+            return (unit > 0 ? Ones[unit] + " و " : "") + Tens[ten];
+        }
+        if (number < 1000)
+        {
+            long rem = number % 100;
+            long hundred = number / 100;
+            return Hundreds[hundred] + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        if (number < 1000000)
+        {
+            long rem = number % 1000;
+            long thousands = number / 1000;
+            string thText = thousands == 1 ? "ألف" : (thousands == 2 ? "ألفان" : (thousands <= 10 ? ConvertGroup(thousands) + " آلاف" : ConvertGroup(thousands) + " ألفاً"));
+            return thText + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        long millRem = number % 1000000;
+        long millions = number / 1000000;
+        string millText = millions == 1 ? "مليون" : (millions == 2 ? "مليونان" : (millions <= 10 ? ConvertGroup(millions) + " ملايين" : ConvertGroup(millions) + " مليوناً"));
+        return millText + (millRem > 0 ? " و " + ConvertGroup(millRem) : "");
+    }
+}
+
+<style>
+    /* ==========================================================================
+       Pixel-Perfect A4 Statement Sheet Styles
+       ========================================================================== */
+    @@page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
+    }
+
+    .statement-sheet {
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        padding: 2.25rem;
+    }
+
+    .table-statement {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-statement thead {
+        display: table-header-group; /* Repeats table header across multiple printed A4 pages */
+    }
+
+    .table-statement th {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.75rem 0.6rem;
+        border: 1px solid #0f172a;
+        text-align: center;
+    }
+
+    .table-statement td {
+        padding: 0.65rem 0.6rem;
+        border: 1px solid #cbd5e1;
+        font-size: 0.88rem;
+        vertical-align: middle;
+    }
+
+    .statement-summary-box {
+        background-color: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .ending-balance-highlight {
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+        border: 2px solid;
+    }
+
+    /* Print Specific Overrides */
+    @@media print {
+        html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 11.5px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .d-print-none,
+        .sidebar,
+        .top-navbar,
+        header,
+        .btn,
+        .alert,
+        .form-control {
+            display: none !important;
+        }
+
+        .main-content,
+        .content-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+        }
+
+        .statement-sheet {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .statement-header,
+        .statement-party-card,
+        .statement-summary-box,
+        .statement-signatures,
+        tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    }
+</style>
+
+<!-- Top Interactive Toolbar (Screen Only) -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2 d-print-none">
+    <div class="d-flex align-items-center gap-2">
+        <h4 class="mb-0 fw-bold text-dark">
+            <i class="bi bi-file-earmark-spreadsheet-fill text-primary me-2"></i>
+            كشف حساب @(Model.PartyType == "Vendor" ? "مورد" : "عميل"): <span class="text-primary">@Model.PartyName</span>
+        </h4>
+    </div>
+
+    <!-- Actions Dock -->
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-primary shadow-sm fw-bold" onclick="window.print()">
+            <i class="bi bi-printer-fill me-1"></i> طباعة كشف الحساب (A4)
+        </button>
+        <button type="button" class="btn btn-outline-success shadow-sm" onclick="exportTableToCSV('statementLedgerTable', 'كشف_حساب_@(Model.PartyName)_@DateTime.Today.ToString("yyyyMMdd")')">
+            <i class="bi bi-file-earmark-excel me-1"></i> تصدير Excel
+        </button>
+        @if (Model.PartyType == "Customer")
+        {
+            <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.PartyId" class="btn btn-success shadow-sm fw-bold">
+                <i class="bi bi-cash-stack me-1"></i> تسجيل سند قبض
+            </a>
+            <a asp-controller="Customer" asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-right me-1"></i> سجل العملاء
+            </a>
+        }
+        else
+        {
+            <a asp-controller="Payment" asp-action="VendorPayment" asp-route-vendorId="@Model.PartyId" class="btn btn-danger shadow-sm fw-bold">
+                <i class="bi bi-wallet2 me-1"></i> تسجيل سند صرف
+            </a>
+            <a asp-controller="Vendor" asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-right me-1"></i> سجل الموردين
+            </a>
+        }
+    </div>
+</div>
+
+<!-- Date Range Filter Form (Screen Only) -->
+<div class="card shadow-sm border-0 mb-4 d-print-none">
+    <div class="card-body p-3">
+        <form method="get" asp-controller="@Model.ControllerName" asp-action="Statement" class="row g-2 align-items-end">
+            <input type="hidden" name="id" value="@Model.PartyId" />
+            
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-bold text-muted"><i class="bi bi-calendar3 me-1"></i> من تاريخ</label>
+                <input type="date" name="from" value="@(Model.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control" />
+            </div>
+            
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-bold text-muted"><i class="bi bi-calendar3 me-1"></i> إلى تاريخ</label>
+                <input type="date" name="to" value="@(Model.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control" />
+            </div>
+            
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">
+                    <i class="bi bi-funnel-fill me-1"></i> تحديث الكشف
+                </button>
+                <a asp-controller="@Model.ControllerName" asp-action="Statement" asp-route-id="@Model.PartyId" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> كل الحركات التاريخية
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ==========================================================================
+     THE OFFICIAL PRINTABLE A4 STATEMENT SHEET
+     ========================================================================== -->
+<div class="statement-sheet">
+
+    <!-- Commercial Document Header -->
+    <div class="statement-header pb-3 mb-4 border-bottom">
+        <div class="row align-items-center g-3">
+            <!-- Merchant Identity (RTL Right) -->
+            <div class="col-5">
+                <h3 class="fw-bold text-dark mb-1">مؤسسة التجارة والتوريدات</h3>
+                <div class="small text-muted">نظام إدارة المحاسبة والمبيعات والخزينة</div>
+                <div class="small text-muted mt-1">
+                    <span><strong>س.ت:</strong> 104928</span> | 
+                    <span><strong>ب.ض:</strong> 482-901-332</span>
+                </div>
+                <div class="small text-muted">
+                    <i class="bi bi-geo-alt me-1"></i> المركز الرئيسي | هاتف: 01000000000
+                </div>
+            </div>
+
+            <!-- Statement Title & Issuance Stamp (Center) -->
+            <div class="col-3 text-center">
+                <div class="p-2 border rounded-3 bg-light d-inline-block">
+                    <h5 class="fw-bold mb-0 text-dark">كشف حساب مالي معتمد</h5>
+                    <small class="text-muted d-block mt-1">تاريخ الإصدار: @DateTime.Today.ToString("yyyy-MM-dd")</small>
+                </div>
+            </div>
+
+            <!-- Statement Period & Scope (RTL Left) -->
+            <div class="col-4 text-start">
+                <div class="d-inline-block text-end p-2 px-3 rounded-3 border bg-light">
+                    <small class="text-muted d-block fw-bold">فترة كشف الحساب:</small>
+                    <div class="fw-bold font-tabular text-dark">
+                        @if (Model.From.HasValue && Model.To.HasValue)
+                        {
+                            <span>@Model.From.Value.ToString("yyyy-MM-dd") <small class="text-muted">إلى</small> @Model.To.Value.ToString("yyyy-MM-dd")</span>
+                        }
+                        else
+                        {
+                            <span class="text-primary">كافة الحركات التاريخية المسجلة</span>
+                        }
+                    </div>
+                    <small class="text-muted d-block">كود الحساب: <strong>#@Model.PartyType.ToUpper().Substring(0, 3)-@Model.PartyId.ToString("D4")</strong></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Party Information Card -->
+    <div class="statement-party-card p-3 rounded-3 border bg-light mb-4">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-6 border-start">
+                <small class="text-muted d-block fw-bold mb-1">
+                    @(Model.PartyType == "Vendor" ? "بيانات المورد (صاحب الحساب):" : "بيانات العميل (صاحب الحساب):")
+                </small>
+                <h5 class="fw-bold text-dark mb-0">
+                    <i class="bi @(Model.PartyType == "Vendor" ? "bi-truck" : "bi-person-fill") text-primary me-1"></i>
+                    @Model.PartyName
+                </h5>
+            </div>
+            <div class="col-md-6">
+                <div class="row text-center text-md-start g-2">
+                    <div class="col-6">
+                        <small class="text-muted d-block">طبيعة الحساب</small>
+                        <span class="fw-bold text-dark">@(Model.PartyType == "Vendor" ? "مورد بضائع ومشتريات" : "عميل مبيعات جملة")</span>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">العملة المعتمدة</small>
+                        <span class="fw-bold text-dark">الجنيه المصري (EGP)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Period Summary Box (4 Columns) -->
+    <div class="statement-summary-box mb-4">
+        <div class="row g-3">
+            <!-- 1. Beginning Balance -->
+            <div class="col-sm-6 col-md-3">
+                <div class="p-3 bg-white rounded-3 border text-center h-100">
+                    <small class="text-muted d-block mb-1 fw-bold">رصيد أول المدة (السابق)</small>
+                    <h5 class="fw-bold font-tabular text-dark mb-1">@Model.BeginningBalance.ToString("N2") <small class="fs-6 text-muted">ج.م</small></h5>
+                    <small class="text-muted">الرصيد قبل بداية الفترة</small>
+                </div>
+            </div>
+
+            <!-- 2. Total Debits / Invoices -->
+            <div class="col-sm-6 col-md-3">
+                <div class="p-3 bg-white rounded-3 border border-primary-subtle text-center h-100">
+                    <small class="text-muted d-block mb-1 fw-bold">إجمالي الحركات المدينة (فواتير)</small>
+                    <h5 class="fw-bold font-tabular text-primary mb-1">+@Model.TotalInvoices.ToString("N2") <small class="fs-6 text-muted">ج.م</small></h5>
+                    <small class="text-muted">إجمالي المسحوبات / المبيعات</small>
+                </div>
+            </div>
+
+            <!-- 3. Total Credits (Payments & Returns) -->
+            <div class="col-sm-6 col-md-3">
+                <div class="p-3 bg-white rounded-3 border border-success-subtle text-center h-100">
+                    <small class="text-muted d-block mb-1 fw-bold">إجمالي الحركات الدائنة (سداد/مرتجع)</small>
+                    <h5 class="fw-bold font-tabular text-success mb-1">-@((Model.TotalPayments + Model.TotalReturns).ToString("N2")) <small class="fs-6 text-muted">ج.م</small></h5>
+                    <small class="text-muted">سدادات: @Model.TotalPayments.ToString("N0") | مرتجع: @Model.TotalReturns.ToString("N0")</small>
+                </div>
+            </div>
+
+            <!-- 4. Ending Balance Highlight -->
+            <div class="col-sm-6 col-md-3">
+                @{
+                    var isSettled = Math.Abs(Model.EndingBalance) < 0.005m;
+                    var boxClass = isSettled ? "bg-success-subtle border-success text-success" : (Model.EndingBalance > 0 ? "bg-danger-subtle border-danger text-danger" : "bg-info-subtle border-info text-info");
+                }
+                <div class="ending-balance-highlight @boxClass h-100 d-flex flex-column justify-content-center">
+                    <small class="fw-bold d-block mb-1">
+                        @if (isSettled)
+                        {
+                            <span>الحساب مطابق ومسدد</span>
+                        }
+                        else if (Model.PartyType == "Customer")
+                        {
+                            <span>@(Model.EndingBalance > 0 ? "صافي المستحق من العميل (لنا)" : "رصيد دائن مدفوع مقدماً (له)")</span>
+                        }
+                        else
+                        {
+                            <span>@(Model.EndingBalance > 0 ? "صافي المستحق للمورد (علينا)" : "رصيد مدين مدفوع مقدماً (لنا)")</span>
+                        }
+                    </small>
+                    <h4 class="fw-bold font-tabular mb-0">
+                        @Math.Abs(Model.EndingBalance).ToString("N2") <small class="fs-6">ج.م</small>
+                    </h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client-Side Instant Table Search Bar (Screen Only) -->
+    <div class="d-flex justify-content-between align-items-center mb-2 d-print-none">
+        <div class="input-group input-group-sm" style="max-width: 350px;">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" class="form-control border-start-0" placeholder="بحث فوري في حركات الكشف..." data-table-search="statementLedgerTable" data-counter-target="statementCounter" />
+        </div>
+        <span class="badge bg-light text-muted border font-tabular" id="statementCounter">
+            عرض @Model.Lines.Count من إجمالي @Model.Lines.Count حركة
+        </span>
+    </div>
+
+    <!-- Statement Ledger Table (A4 Repeating Headers) -->
+    <div class="table-responsive mb-4">
+        <table class="table-statement" id="statementLedgerTable">
+            <thead>
+                <tr>
+                    <th style="width: 45px;">#</th>
+                    <th style="width: 105px;">التاريخ</th>
+                    <th class="text-start">نوع الحركة / المستند</th>
+                    <th style="width: 135px;">رقم المستند</th>
+                    <th style="width: 110px;">مدين (+)</th>
+                    <th style="width: 110px;">دائن (-)</th>
+                    <th style="width: 130px;">الرصيد التراكمي</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Lines.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted bg-white">
+                            <i class="bi bi-journal-x fs-1 d-block mb-2 text-secondary"></i>
+                            لا توجد حركات مالية مسجلة في هذه الفترة.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    int lineIdx = 1;
+                    foreach (var line in Model.Lines)
+                    {
+                        <tr>
+                            <td class="text-center text-muted fw-bold font-tabular">@(lineIdx++)</td>
+                            <td class="text-center font-tabular">@line.Date.ToString("yyyy-MM-dd")</td>
+                            <td class="text-start fw-bold text-dark">
+                                @if (line.DocumentType.Contains("فاتورة"))
+                                {
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">فاتورة</span>
+                                }
+                                else if (line.DocumentType.Contains("قبض") || line.DocumentType.Contains("دفعة"))
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle me-1">سند قبض</span>
+                                }
+                                else if (line.DocumentType.Contains("صرف"))
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">سند صرف</span>
+                                }
+                                else if (line.DocumentType.Contains("مرتجع"))
+                                {
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle me-1">مرتجع</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary me-1">افتتاحي</span>
+                                }
+                                @line.DocumentType
+                            </td>
+                            <td class="text-center font-monospace fw-bold">@line.DocumentNo</td>
+                            <td class="text-center font-tabular @(line.Debit > 0 ? "text-danger fw-bold" : "text-muted")">
+                                @(line.Debit > 0 ? line.Debit.ToString("N2") : "-")
+                            </td>
+                            <td class="text-center font-tabular @(line.Credit > 0 ? "text-success fw-bold" : "text-muted")">
+                                @(line.Credit > 0 ? line.Credit.ToString("N2") : "-")
+                            </td>
+                            <td class="text-center font-tabular fw-bold text-dark">
+                                @Math.Abs(line.RunningBalance).ToString("N2")
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            <tfoot>
+                <tr class="table-light">
+                    <td colspan="4" class="fw-bold text-end">إجمالي الحركات والرصيد النهائي المستحق:</td>
+                    <td class="text-center fw-bold text-danger font-tabular">@Model.TotalInvoices.ToString("N2")</td>
+                    <td class="text-center fw-bold text-success font-tabular">@((Model.TotalPayments + Model.TotalReturns).ToString("N2"))</td>
+                    <td class="text-center fw-bold fs-6 text-dark font-tabular">@Math.Abs(Model.EndingBalance).ToString("N2") ج.م</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Tafqeet (Arabic Words) Line -->
+    <div class="p-3 bg-light rounded-3 border mb-4">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <span class="text-muted small fw-bold d-block mb-1">الرصيد النهائي المستحق كتابةً (فقط وقدره):</span>
+                <div class="fw-bold text-dark fs-6">
+                    @ToArabicWords(Math.Abs(Model.EndingBalance))
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                <span class="badge bg-white text-dark border p-2 font-tabular">
+                    حالة الرصيد: <strong>@(Model.EndingBalance >= 0 ? "مدين (لنا)" : "دائن (له)")</strong>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit & Legal Disclaimer & Dual Signatures -->
+    <div class="statement-signatures pt-3 border-top">
+        <div class="alert alert-light border small text-muted mb-4">
+            <i class="bi bi-info-circle-fill text-primary me-1"></i>
+            <strong>إشعار مطابقة واعتماد رصيد:</strong>
+            يرجى مراجعة الحركات والأرصدة الموضحة أعلاه. يعتبر هذا الرصيد نهائياً وصحيحاً ومطابقاً للدفاتر المحاسبية ما لم يردنا منكم أي اعتراض كتابي رسمي خلال 15 يوماً من تاريخ استلام كشف الحساب.
+        </div>
+
+        <div class="row text-center mt-4 pt-2">
+            <div class="col-6">
+                <div class="fw-bold text-dark mb-4">توقيع وختم الإدارة المالية / الحسابات</div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-5">
+                    ............................................................
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="fw-bold text-dark mb-4">توقيع واعتماد صاحب الحساب (@(Model.PartyType == "Vendor" ? "المورد" : "العميل"))</div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-5">
+                    ............................................................
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>

@@ -1,5 +1,6 @@
 ﻿using DAL.AppDbContext;
 using DAL.Entities;
+using DAL.Enums;
 using DAL.IRepos;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -21,6 +22,14 @@ namespace DAL.Repos
         {
             var listOfActiveProducts = await _context.Products.Where(a => a.IsActive).ToListAsync();
             return listOfActiveProducts;
+        }
+
+        public async Task<List<Product>> GetByCategoryAsync(ProductCategory category)
+        {
+            return await _context.Products
+                .Where(p => p.Category == category && p.IsActive)
+                .OrderBy(p => p.Name)
+                .ToListAsync();
         }
 
         public async Task<Product?> GetByNameAsync(string name)

@@ -1,0 +1,77 @@
+@model List<BLL.DTOs.OpeningBalance.OutGoingData.OpeningBalanceDto>
+@{
+    ViewData["Title"] = "الأرصدة الافتتاحية";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-journal-bookmark-fill me-2"></i> الأرصدة الافتتاحية</h4>
+    <div class="btn-group">
+        <a asp-action="CreateCustomerBalance" class="btn btn-primary">
+            <i class="bi bi-person-plus me-1"></i> رصيد افتتاحي لعميل
+        </a>
+        <a asp-action="CreateVendorBalance" class="btn btn-outline-primary">
+            <i class="bi bi-truck me-1"></i> رصيد افتتاحي لمورد
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        @if (Model.Count == 0)
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-journal-bookmark fs-1 d-block mb-3"></i>
+                <p class="mb-3">لا توجد أرصدة افتتاحية مسجلة بعد. سجّل رصيدًا افتتاحيًا لعميل أو لمورد للبدء في تتبع مديونيته بدقة.</p>
+                <div class="d-inline-flex gap-2">
+                    <a asp-action="CreateCustomerBalance" class="btn btn-primary">
+                        <i class="bi bi-person-plus me-1"></i> رصيد لعميل
+                    </a>
+                    <a asp-action="CreateVendorBalance" class="btn btn-outline-primary">
+                        <i class="bi bi-truck me-1"></i> رصيد لمورد
+                    </a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>الطرف</th>
+                            <th>النوع</th>
+                            <th>المبلغ</th>
+                            <th>التاريخ</th>
+                            <th>ملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var balance in Model)
+                        {
+                            <tr>
+                                <td>@balance.Id</td>
+                                <td class="fw-bold">
+                                    @(balance.CustomerId != null ? balance.CustomerName : balance.VendorName)
+                                </td>
+                                <td>
+                                    @if (balance.CustomerId != null)
+                                    {
+                                        <span class="badge bg-primary">عميل - مدين</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">مورد - دائن</span>
+                                    }
+                                </td>
+                                <td class="fw-bold">@balance.Amount.ToString("N2")</td>
+                                <td>@balance.EffectiveDate.ToString("yyyy/MM/dd")</td>
+                                <td>@(string.IsNullOrEmpty(balance.Notes) ? "-" : balance.Notes)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

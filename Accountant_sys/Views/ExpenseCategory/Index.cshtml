@@ -1,0 +1,81 @@
+@model List<BLL.DTOs.ExpenseCategory.OutGoingData.ExpenseCategoryDto>
+@{
+    ViewData["Title"] = "بنود المصروفات";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4><i class="bi bi-tags-fill me-2"></i> بنود المصروفات</h4>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> إضافة بند
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        @if (Model.Count == 0)
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-tags fs-1 d-block mb-3"></i>
+                <p class="mb-3">لا توجد بنود مصروفات بعد. أضف أول بند لتتمكن من تسجيل المصروفات.</p>
+                <a asp-action="Create" class="btn btn-primary">
+                    <i class="bi bi-plus-lg me-1"></i> إضافة بند جديد
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>اسم البند</th>
+                            <th>الحالة</th>
+                            <th>تاريخ الإضافة</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var category in Model)
+                        {
+                            <tr>
+                                <td>@category.Id</td>
+                                <td class="fw-bold">@category.Name</td>
+                                <td>
+                                    @if (category.IsActive)
+                                    {
+                                        <span class="badge bg-success">نشط</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">غير نشط</span>
+                                    }
+                                </td>
+                                <td>@category.CreatedAt.ToString("yyyy/MM/dd")</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a asp-action="Edit" asp-route-id="@category.Id" class="btn btn-outline-warning" title="تعديل">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form asp-action="ToggleStatus" asp-route-id="@category.Id" method="post" class="d-inline"
+                                              data-swal
+                                              data-swal-title="تغيير حالة بند المصروف"
+                                              data-swal-text="سيتم تغيير حالة البند (نشط / غير نشط). هل تريد المتابعة؟">
+                                            <button type="submit" class="btn btn-outline-secondary" title="تمييز/إلغاء التنشيط">
+                                                <i class="bi bi-arrow-repeat"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/confirm-submit.js"></script>
+}

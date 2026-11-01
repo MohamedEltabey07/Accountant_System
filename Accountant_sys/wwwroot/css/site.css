@@ -1,31 +1,342 @@
+/* ==========================================================================
+   Accountant_sys - Modern Fintech Design System Tokens & Global Styles
+   ========================================================================== */
+
+:root {
+    /* Brand & Accent Palettes */
+    --color-slate-900: #0f172a;
+    --color-slate-800: #1e293b;
+    --color-slate-700: #334155;
+    --color-slate-600: #475569;
+    --color-slate-500: #64748b;
+    --color-slate-200: #e2e8f0;
+    --color-slate-100: #f1f5f9;
+    --color-slate-50:  #f8fafc;
+
+    --color-primary: #4f46e5;       /* Electric Indigo */
+    --color-primary-hover: #4338ca;
+    --color-primary-light: #e0e7ff;
+
+    --color-success: #10b981;       /* Emerald */
+    --color-success-hover: #059669;
+    --color-success-light: #d1fae5;
+
+    --color-danger: #f43f5e;        /* Rose */
+    --color-danger-hover: #e11d48;
+    --color-danger-light: #ffe4e6;
+
+    --color-warning: #f59e0b;       /* Amber */
+    --color-warning-hover: #d97706;
+    --color-warning-light: #fef3c7;
+
+    --color-info: #0284c7;          /* Sky */
+    --color-info-light: #e0f2fe;
+
+    /* Surface & Borders */
+    --surface-bg: #f8fafc;
+    --surface-card: #ffffff;
+    --surface-border: #e2e8f0;
+    --surface-border-subtle: #f1f5f9;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --shadow-card-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+    --shadow-dropdown: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+    /* Radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+}
+
+/* Base Document */
 html {
-  font-size: 14px;
-}
-
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
+    font-size: 15px;
+    position: relative;
+    min-height: 100%;
 }
 
 body {
-  margin-bottom: 60px;
+    font-family: 'Cairo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--surface-bg);
+    color: var(--color-slate-800);
+    letter-spacing: -0.01em;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-  color: var(--bs-secondary-color);
-  text-align: end;
+/* Tabular numbers for financial precision */
+.font-tabular,
+.table td,
+.metric-value,
+.stat-number {
+    font-variant-numeric: tabular-nums;
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-  text-align: start;
+/* ==========================================================================
+   Elevated Cards & Interactive Surfaces
+   ========================================================================== */
+
+.card {
+    background-color: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-interactive {
+    cursor: pointer;
+}
+
+.card-interactive:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: #cbd5e1;
+}
+
+.card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--surface-border);
+    padding: 1.15rem 1.4rem;
+}
+
+.card-body {
+    padding: 1.4rem;
+}
+
+/* ==========================================================================
+   Hero KPI Cards (Fintech Style)
+   ========================================================================== */
+
+.kpi-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+}
+
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: 4px;
+}
+
+.kpi-card-emerald::before { background: linear-gradient(90deg, #10b981, #34d399); }
+.kpi-card-rose::before    { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+.kpi-card-indigo::before  { background: linear-gradient(90deg, #4f46e5, #818cf8); }
+.kpi-card-amber::before   { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+.kpi-icon-badge {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+}
+
+/* ==========================================================================
+   Modern Table Styling
+   ========================================================================== */
+
+.table-modern {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+
+.table-modern thead th {
+    background-color: #f8fafc;
+    color: var(--color-slate-600);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--surface-border);
+    white-space: nowrap;
+}
+
+.table-modern tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.table-modern tbody tr:hover {
+    background-color: #f1f5f9;
+}
+
+.table-modern tbody td {
+    padding: 1rem 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+/* Status Badges */
+.badge-pill-modern {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* ==========================================================================
+   Buttons & Interactive Elements
+   ========================================================================== */
+
+.btn {
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    padding: 0.55rem 1.15rem;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+}
+
+/* Form Controls */
+.form-control, .form-select {
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    padding: 0.65rem 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+/* ==========================================================================
+   Custom Sleek Scrollbar
+   ========================================================================== */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ==========================================================================
+   Global Commercial A4 Print Stylesheet
+   ========================================================================== */
+@page {
+    size: A4 portrait;
+    margin: 10mm 12mm 12mm 12mm;
+}
+
+/* Custom Maritime Anchor Icon (.bi-anchor) for Bootstrap Icons */
+.bi-anchor::before {
+    content: "" !important;
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0a2.5 2.5 0 0 0-.5 4.95V6H6a.5.5 0 0 0 0 1h1.5v5.525A4.5 4.5 0 0 1 3.013 9H4.5a.5.5 0 0 0 0-1H1.5a.5.5 0 0 0-.5.5c0 4.142 3.358 7.5 7.5 7.5s7.5-3.358 7.5-7.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0 0 1h1.487A4.5 4.5 0 0 1 8.5 12.525V7H10a.5.5 0 0 0 0-1H8.5V4.95A2.5 2.5 0 0 0 8 0zM8 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E") no-repeat center / contain;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0a2.5 2.5 0 0 0-.5 4.95V6H6a.5.5 0 0 0 0 1h1.5v5.525A4.5 4.5 0 0 1 3.013 9H4.5a.5.5 0 0 0 0-1H1.5a.5.5 0 0 0-.5.5c0 4.142 3.358 7.5 7.5 7.5s7.5-3.358 7.5-7.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0 0 1h1.487A4.5 4.5 0 0 1 8.5 12.525V7H10a.5.5 0 0 0 0-1H8.5V4.95A2.5 2.5 0 0 0 8 0zM8 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+@media print {
+    html, body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .d-print-none,
+    .no-print,
+    .sidebar,
+    .top-navbar,
+    .btn,
+    .alert,
+    nav,
+    footer,
+    .pagination,
+    .dataTables_filter,
+    .input-group,
+    header {
+        display: none !important;
+    }
+
+    .main-content,
+    .content-area {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        background: #ffffff !important;
+    }
+
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 0 !important;
+    }
+
+    .table-responsive {
+        overflow: visible !important;
+    }
+
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        page-break-inside: auto !important;
+    }
+
+    thead {
+        display: table-header-group !important; /* Repeats table headers on each A4 page */
+    }
+
+    tfoot {
+        display: table-footer-group !important;
+    }
+
+    tr, td, th {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    .badge {
+        border: 1px solid #64748b !important;
+        color: #000000 !important;
+        background: transparent !important;
+    }
 }

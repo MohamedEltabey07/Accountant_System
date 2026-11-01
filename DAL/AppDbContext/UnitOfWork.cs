@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace DAL.AppDbContext
 {
@@ -22,6 +23,20 @@ namespace DAL.AppDbContext
 
         public IInvoiceRepo InvoiceRepo { get; }
 
+        public ICashTransactionRepo CashTransactionRepo { get; }
+
+        public IPaymentAllocationRepo PaymentAllocationRepo { get; }
+
+        public ICreditNoteRepo CreditNoteRepo { get; }
+
+        public IOpeningBalanceRepo OpeningBalanceRepo { get; }
+
+        public IExpenseCategoryRepo ExpenseCategoryRepo { get; }
+
+        public IDailyClosingRepo DailyClosingRepo { get; }
+
+        public IStockMovementRepo StockMovementRepo { get; }
+
         public UnitOfWork(AppDbcontext context)
         {
             _context = context;
@@ -29,6 +44,13 @@ namespace DAL.AppDbContext
             CustomerRepo = new CustomerRepo(context);
             Vendors = new VendorRepo(context);
             InvoiceRepo = new InvoiceRepo(context);
+            CashTransactionRepo = new CashTransactionRepo(context);
+            PaymentAllocationRepo = new PaymentAllocationRepo(context);
+            CreditNoteRepo = new CreditNoteRepo(context);
+            OpeningBalanceRepo = new OpeningBalanceRepo(context);
+            ExpenseCategoryRepo = new ExpenseCategoryRepo(context);
+            DailyClosingRepo = new DailyClosingRepo(context);
+            StockMovementRepo = new StockMovementRepo(context);
         }
 
         public async Task SaveChangesAsync()

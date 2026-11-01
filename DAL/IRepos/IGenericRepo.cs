@@ -8,7 +8,7 @@ namespace DAL.IRepos
     public interface IGenericRepo<T> where T : class
     {
         public Task AddAsync (T item);
-        public Task Update(T item);
+        public void Update(T item);
         public bool Delete(T item);
         public Task<T> GetByIdAsync (string id);
         public Task<T> GetByIdAsync(int id);

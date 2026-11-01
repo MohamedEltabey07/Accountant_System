@@ -1,140 +1,404 @@
+@model BLL.DTOs.Dashboard.OutGoingData.DashboardDto
 @{
-    ViewData["Title"] = "لوحة التحكم الرئيسية";
+    ViewData["Title"] = "لوحة التحكم المالية";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<!-- Welcome & Shift Status Banner -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-speedometer2 text-primary me-2"></i> لوحة التحكم</h3>
-        <p class="text-muted mb-0">مرحباً بك في نظام إدارة الحسابات، المبيعات والمخازن</p>
+        <h3 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+            <span><i class="bi bi-speedometer2 text-primary me-2"></i>لوحة التحكم المالية التنفيذية</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 py-1 px-3">
+                <i class="bi bi-calendar3 me-1"></i> @DateTime.Today.ToString("yyyy-MM-dd dddd", new System.Globalization.CultureInfo("ar-EG"))
+            </span>
+        </h3>
+        <p class="text-muted mb-0">نظرة عامة وشاملة على السيولة النقدية، أرصدة الخزينة، مخزون الثلاجات، والمديونيات النشطة في النظام</p>
     </div>
-    <div class="d-flex gap-2">
-        <a asp-controller="Invoice" asp-action="Create" class="btn btn-primary shadow-sm">
-            <i class="bi bi-plus-lg me-1"></i> فاتورة جديدة
-        </a>
+
+    <!-- Live Register Shift Badge & Direct Action -->
+    <div class="d-flex align-items-center gap-2">
+        @if (Model.IsTodayClosed)
+        {
+            <div class="d-flex align-items-center gap-2 p-2 px-3 rounded-3 bg-success-subtle border border-success-subtle">
+                <i class="bi bi-shield-check text-success fs-5"></i>
+                <div>
+                    <div class="small fw-bold text-success">وردية اليوم مقفلة</div>
+                    <small class="text-muted">تم جرد الخزينة واعتماد الحسابات</small>
+                </div>
+            </div>
+            <a asp-controller="DailyClosing" asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-journal-text me-1"></i> سجل الإقفالات
+            </a>
+        }
+        else
+        {
+            <div class="d-flex align-items-center gap-2 p-2 px-3 rounded-3 bg-warning-subtle border border-warning-subtle">
+                <i class="bi bi-unlock-fill text-warning fs-5"></i>
+                <div>
+                    <div class="small fw-bold text-warning-emphasis">الوردية جارية ومفتوحة</div>
+                    <small class="text-muted">يمكنك تسجيل وإقفال اليومية في أي وقت</small>
+                </div>
+            </div>
+            <a asp-controller="DailyClosing" asp-action="CloseDay" class="btn btn-warning shadow-sm fw-bold">
+                <i class="bi bi-calendar-check me-1"></i> جرد وإقفال اليومية
+            </a>
+        }
     </div>
 </div>
 
-<!-- Quick Navigation Cards -->
+<!-- 4 Hero KPI Cards (Fintech Standard) -->
 <div class="row g-3 mb-4">
-    <!-- Products Card -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card shadow-sm h-100 border-0 border-start border-primary border-4">
+    <!-- Customer Debt (ما لنا عند العملاء) -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card kpi-card kpi-card-emerald h-100 card-interactive shadow-sm border-0">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-bold">المنتجات والمخزون</span>
-                    <span class="badge bg-primary-subtle text-primary p-2 rounded-circle">
-                        <i class="bi bi-box-seam fs-5"></i>
-                    </span>
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="text-muted small fw-bold d-block mb-1">ما لنا عند العملاء</span>
+                        <h3 class="fw-bold text-dark font-tabular mb-0">
+                            @Model.TotalCustomerDebt.ToString("N2") <small class="fs-6 text-muted">ج.م</small>
+                        </h3>
+                    </div>
+                    <div class="kpi-icon-badge bg-success-subtle text-success p-3 rounded-3">
+                        <i class="bi bi-people-fill fs-4"></i>
+                    </div>
                 </div>
-                <h5 class="fw-bold mb-2">دليل المنتجات والأسعار</h5>
-                <p class="text-muted small mb-3">إدارة الأصناف، أسعار الشراء، الجملة، والتجزئة.</p>
-                <a asp-controller="Product" asp-action="Index" class="btn btn-sm btn-outline-primary w-100">
-                    <i class="bi bi-arrow-left me-1"></i> إدارة المنتجات
-                </a>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="badge bg-light text-success border border-success-subtle">
+                        <i class="bi bi-graph-up-arrow me-1"></i> مديونيات آجلة
+                    </span>
+                    <a asp-controller="Customer" asp-action="Index" class="btn btn-sm btn-link text-decoration-none text-muted p-0">
+                        <i class="bi bi-person-lines-fill me-1"></i> سجل العملاء <i class="bi bi-arrow-left"></i>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Customers Card -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card shadow-sm h-100 border-0 border-start border-success border-4">
+    <!-- Vendor Debt (ما علينا للموردين) -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card kpi-card kpi-card-rose h-100 card-interactive shadow-sm border-0">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-bold">العملاء والمديونيات</span>
-                    <span class="badge bg-success-subtle text-success p-2 rounded-circle">
-                        <i class="bi bi-people-fill fs-5"></i>
-                    </span>
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="text-muted small fw-bold d-block mb-1">ما علينا للموردين</span>
+                        <h3 class="fw-bold text-danger font-tabular mb-0">
+                            @Model.TotalVendorDebt.ToString("N2") <small class="fs-6 text-muted">ج.م</small>
+                        </h3>
+                    </div>
+                    <div class="kpi-icon-badge bg-danger-subtle text-danger p-3 rounded-3">
+                        <i class="bi bi-truck fs-4"></i>
+                    </div>
                 </div>
-                <h5 class="fw-bold mb-2">سجل العملاء</h5>
-                <p class="text-muted small mb-3">متابعة أرصدة العملاء، مديونيات الجملة، وحركات السداد.</p>
-                <a asp-controller="Customer" asp-action="Index" class="btn btn-sm btn-outline-success w-100">
-                    <i class="bi bi-arrow-left me-1"></i> استعراض العملاء
-                </a>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="badge bg-light text-danger border border-danger-subtle">
+                        <i class="bi bi-exclamation-circle me-1"></i> التزامات مستحقة
+                    </span>
+                    <a asp-controller="Vendor" asp-action="Index" class="btn btn-sm btn-link text-decoration-none text-muted p-0">
+                        <i class="bi bi-truck me-1"></i> سجل الموردين <i class="bi bi-arrow-left"></i>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Vendors Card -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card shadow-sm h-100 border-0 border-start border-warning border-4">
+    <!-- Real-time Drawer Cash (رصيد الخزينة بالدرج) -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card kpi-card kpi-card-indigo h-100 card-interactive shadow-sm border-0">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-bold">الموردين والمشتريات</span>
-                    <span class="badge bg-warning-subtle text-warning p-2 rounded-circle">
-                        <i class="bi bi-truck fs-5"></i>
-                    </span>
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="text-muted small fw-bold d-block mb-1">الرصيد التقديري بالدرج</span>
+                        <h3 class="fw-bold text-dark font-tabular mb-0">
+                            @Model.CurrentDrawerCash.ToString("N2") <small class="fs-6 text-muted">ج.م</small>
+                        </h3>
+                    </div>
+                    <div class="kpi-icon-badge bg-primary-subtle text-primary p-3 rounded-3">
+                        <i class="bi bi-cash-coin fs-4"></i>
+                    </div>
                 </div>
-                <h5 class="fw-bold mb-2">سجل الموردين</h5>
-                <p class="text-muted small mb-3">متابعة حسابات الموردين، الأرصدة المستحقة، والدفعات.</p>
-                <a asp-controller="Vendor" asp-action="Index" class="btn btn-sm btn-outline-warning w-100">
-                    <i class="bi bi-arrow-left me-1"></i> استعراض الموردين
-                </a>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="text-muted small">
+                        وارد اليوم: <strong class="text-success font-tabular">+@Model.TodayCashIn.ToString("N0")</strong>
+                    </span>
+                    <a asp-controller="DailyClosing" asp-action="CloseDay" class="btn btn-sm btn-link text-decoration-none text-muted p-0">
+                        <i class="bi bi-safe me-1"></i> مطابقة الخزينة <i class="bi bi-arrow-left"></i>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Invoices Card -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card shadow-sm h-100 border-0 border-start border-info border-4">
+    <!-- Open Invoices (الفواتير غير المسددة) -->
+    <div class="col-sm-6 col-xl-3">
+        <div class="card kpi-card kpi-card-amber h-100 card-interactive shadow-sm border-0">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-bold">الفواتير والمبيعات</span>
-                    <span class="badge bg-info-subtle text-info p-2 rounded-circle">
-                        <i class="bi bi-receipt fs-5"></i>
-                    </span>
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="text-muted small fw-bold d-block mb-1">فواتير قيد التحصيل والسداد</span>
+                        <h3 class="fw-bold text-dark font-tabular mb-0">
+                            @Model.OpenInvoicesCount <small class="fs-6 text-muted">فاتورة</small>
+                        </h3>
+                    </div>
+                    <div class="kpi-icon-badge bg-warning-subtle text-warning p-3 rounded-3">
+                        <i class="bi bi-receipt-cutoff fs-4"></i>
+                    </div>
                 </div>
-                <h5 class="fw-bold mb-2">سجل الفواتير</h5>
-                <p class="text-muted small mb-3">المشتريات، مبيعات الجملة، ومبيعات التجزئة النقدية.</p>
-                <a asp-controller="Invoice" asp-action="Index" class="btn btn-sm btn-outline-info w-100">
-                    <i class="bi bi-arrow-left me-1"></i> استعراض الفواتير
-                </a>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="text-muted small">
+                        فواتير صدرت اليوم: <strong class="text-primary font-tabular">@Model.TodayInvoicesCount</strong>
+                    </span>
+                    <a asp-controller="Invoice" asp-action="Index" class="btn btn-sm btn-link text-decoration-none text-muted p-0">
+                        <i class="bi bi-receipt me-1"></i> استعراض الفواتير <i class="bi bi-arrow-left"></i>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Quick Operations Panel -->
-<div class="card shadow-sm">
-    <div class="card-header bg-white py-3">
-        <h5 class="card-title mb-0 text-dark">
-            <i class="bi bi-lightning-charge text-warning me-1"></i> عمليات سريعة
-        </h5>
+<!-- Visual Cash Flow Tracker (Today's Movements) -->
+<div class="card shadow-sm border-0 mb-4 bg-white">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <div class="p-2 bg-primary-subtle text-primary rounded-circle">
+                <i class="bi bi-arrow-left-right"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold text-dark mb-0">مؤشر التدفق النقدي اليومي (Daily Cash Flow Tracker)</h6>
+                <small class="text-muted">مقارنة المقبوضات النقدية مع المصروفات والمدفوعات لليوم</small>
+            </div>
+        </div>
+        <div>
+            @{
+                var netCash = Model.TodayCashIn - Model.TodayCashOut;
+                var netSign = netCash >= 0 ? "+" : "";
+                var netBadgeClass = netCash >= 0 ? "bg-success-subtle text-success border-success-subtle" : "bg-danger-subtle text-danger border-danger-subtle";
+            }
+            <span class="badge @netBadgeClass border px-3 py-2 fs-6 font-tabular">
+                صافي اليوم: @netSign@netCash.ToString("N2") ج.م
+            </span>
+        </div>
     </div>
-    <div class="card-body">
-        <div class="row g-2">
-            <div class="col-sm-6 col-md-3">
-                <a asp-controller="Invoice" asp-action="Create" class="btn btn-outline-primary d-flex align-items-center justify-content-center p-3 w-100">
-                    <i class="bi bi-file-earmark-plus fs-4 me-2"></i>
-                    <div class="text-end">
-                        <div class="fw-bold">فاتورة مبيعات</div>
-                        <small class="text-muted">جملة أو تجزئة</small>
+    <div class="card-body p-4">
+        @{
+            var totalVolume = Model.TodayCashIn + Model.TodayCashOut;
+            var inPercent = totalVolume > 0 ? (Model.TodayCashIn / totalVolume) * 100 : 50;
+            var outPercent = totalVolume > 0 ? (Model.TodayCashOut / totalVolume) * 100 : 50;
+        }
+        <div class="mb-3">
+            <div class="d-flex justify-content-between small fw-bold mb-1">
+                <span class="text-success"><i class="bi bi-arrow-down-left me-1"></i> مقبوضات نقدية (وارد): @Model.TodayCashIn.ToString("N2") ج.م (@inPercent.ToString("0")%)</span>
+                <span class="text-danger">مدفوعات ومصروفات (منصرف): @Model.TodayCashOut.ToString("N2") ج.م (@outPercent.ToString("0")%) <i class="bi bi-arrow-up-right ms-1"></i></span>
+            </div>
+            <div class="progress" style="height: 12px; border-radius: 999px; background-color: #f1f5f9;">
+                <div class="progress-bar bg-success" role="progressbar" style="width: @inPercent%" aria-valuenow="@inPercent" aria-valuemin="0" aria-valuemax="100"></div>
+                <div class="progress-bar bg-danger" role="progressbar" style="width: @outPercent%" aria-valuenow="@outPercent" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+        </div>
+
+        <div class="row text-center g-3 pt-2">
+            <div class="col-sm-4 border-start">
+                <small class="text-muted d-block">إجمالي الوارد (Cash In)</small>
+                <h5 class="fw-bold text-success font-tabular mb-0">+@Model.TodayCashIn.ToString("N2") <small class="fs-6">ج.م</small></h5>
+            </div>
+            <div class="col-sm-4 border-start">
+                <small class="text-muted d-block">إجمالي المنصرف (Cash Out)</small>
+                <h5 class="fw-bold text-danger font-tabular mb-0">-@Model.TodayCashOut.ToString("N2") <small class="fs-6">ج.م</small></h5>
+            </div>
+            <div class="col-sm-4">
+                <small class="text-muted d-block">فواتير اليوم الصادرة</small>
+                <h5 class="fw-bold text-primary font-tabular mb-0">@Model.TodayInvoicesCount <small class="fs-6">فاتورة</small></h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Action Dock (Oversized, Touch-friendly Tiles) -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3 border-bottom">
+        <h6 class="card-title mb-0 fw-bold text-dark">
+            <i class="bi bi-lightning-charge-fill text-warning me-2"></i> العمليات التشغيلية والمالية السريعة
+        </h6>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-3">
+            <!-- 1. New Sales Invoice -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Invoice" asp-action="Create" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-primary-subtle text-primary rounded-3">
+                            <i class="bi bi-receipt fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">فاتورة مبيعات</div>
+                            <small class="text-muted">بيع جملة أو تجزئة كاش</small>
+                        </div>
                     </div>
                 </a>
             </div>
-            <div class="col-sm-6 col-md-3">
-                <a asp-controller="Invoice" asp-action="Create" class="btn btn-outline-secondary d-flex align-items-center justify-content-center p-3 w-100">
-                    <i class="bi bi-cart-plus fs-4 me-2"></i>
-                    <div class="text-end">
-                        <div class="fw-bold">فاتورة مشتريات</div>
-                        <small class="text-muted">تسجيل بضاعة مورد</small>
+
+            <!-- 2. Maritime Supply Order -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Invoice" asp-action="Create" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-info-subtle text-info rounded-3">
+                            <i class="bi bi-anchor fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">توريد بحري</div>
+                            <small class="text-muted">أمر توريد لشركة ملاحة</small>
+                        </div>
                     </div>
                 </a>
             </div>
-            <div class="col-sm-6 col-md-3">
-                <a asp-controller="Customer" asp-action="Create" class="btn btn-outline-success d-flex align-items-center justify-content-center p-3 w-100">
-                    <i class="bi bi-person-plus fs-4 me-2"></i>
-                    <div class="text-end">
-                        <div class="fw-bold">عميل جديد</div>
-                        <small class="text-muted">إضافة عميل للسجل</small>
+
+            <!-- 3. Stock In (استلام سمك) -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Inventory" asp-action="StockIn" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-success-subtle text-success rounded-3">
+                            <i class="bi bi-box-arrow-in-down fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">استلام سمك (وارد)</div>
+                            <small class="text-muted">إضافة كراتين لمخزون الثلاجات</small>
+                        </div>
                     </div>
                 </a>
             </div>
-            <div class="col-sm-6 col-md-3">
-                <a asp-controller="Product" asp-action="Create" class="btn btn-outline-info d-flex align-items-center justify-content-center p-3 w-100">
-                    <i class="bi bi-plus-square fs-4 me-2"></i>
-                    <div class="text-end">
-                        <div class="fw-bold">صنف جديد</div>
-                        <small class="text-muted">تسجيل منتج وأسعاره</small>
+
+            <!-- 4. Stock Out (صرف سمك) -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Inventory" asp-action="StockOut" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-danger-subtle text-danger rounded-3">
+                            <i class="bi bi-box-arrow-up fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">صرف سمك (صادر)</div>
+                            <small class="text-muted">إخراج فعلي من رصيد الثلاجات</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 5. Customer Payment -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Payment" asp-action="CustomerPayment" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-success-subtle text-success rounded-3">
+                            <i class="bi bi-cash-stack fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">سند قبض عميل</div>
+                            <small class="text-muted">تحصيل دفعة نقدية بالخزينة</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 6. Vendor Payment -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Payment" asp-action="VendorPayment" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-danger-subtle text-danger rounded-3">
+                            <i class="bi bi-wallet2 fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">سند صرف مورد</div>
+                            <small class="text-muted">سداد نقدي لحساب مورد</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 7. Close Shift / Register -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="DailyClosing" asp-action="CloseDay" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-warning-subtle text-warning rounded-3">
+                            <i class="bi bi-calendar-check fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">إقفال الوردية</div>
+                            <small class="text-muted">جرد النقدية وإثبات الفارق</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 8. Freezer Stock Report -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Inventory" asp-action="StockReport" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-primary-subtle text-primary rounded-3">
+                            <i class="bi bi-thermometer-snow fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">تقرير رصيد الثلاجات</div>
+                            <small class="text-muted">الأرصدة المتاحة للطباعة (A4)</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 9. Customer Statement -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Customer" asp-action="Statement" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-secondary-subtle text-secondary rounded-3">
+                            <i class="bi bi-file-earmark-person fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">كشف حساب عميل</div>
+                            <small class="text-muted">تقرير مالي تفصيلي للأرصدة</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 10. Maritime Company Statement -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="MaritimeCompany" asp-action="Statement" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-info-subtle text-info rounded-3">
+                            <i class="bi bi-file-earmark-spreadsheet fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">كشف حساب شركة بحرية</div>
+                            <small class="text-muted">أوامر التوريد والتسويات المالية</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 11. Vendor Statement -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="Vendor" asp-action="Statement" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-secondary-subtle text-secondary rounded-3">
+                            <i class="bi bi-file-earmark-ruled fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">كشف حساب مورد</div>
+                            <small class="text-muted">حركة المشتريات والمدفوعات</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- 12. Opening Balances -->
+            <div class="col-sm-6 col-lg-3">
+                <a asp-controller="OpeningBalance" asp-action="Index" class="card card-interactive h-100 p-3 text-decoration-none border">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 bg-dark-subtle text-dark rounded-3">
+                            <i class="bi bi-journal-bookmark fs-3"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark">الأرصدة الافتتاحية</div>
+                            <small class="text-muted">أرصدة بداية تشغيل الحسابات</small>
+                        </div>
                     </div>
                 </a>
             </div>

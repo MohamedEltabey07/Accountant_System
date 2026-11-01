@@ -3,262 +3,435 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - نظام المحاسبة</title>
+    <title>@ViewData["Title"] - نظام المحاسبة والخزينة</title>
+    
+    <!-- App Favicon -->
+    <link rel="icon" type="image/jpeg" href="~/FavIcon.jpg" asp-append-version="true" />
+    <link rel="shortcut icon" type="image/jpeg" href="~/FavIcon.jpg" asp-append-version="true" />
+    <link rel="apple-touch-icon" href="~/FavIcon.jpg" asp-append-version="true" />
+    
+    <!-- Fonts: Cairo -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" />
+    
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f6f9;
-        }
-        /* Sidebar */
+        /* Sidebar Styling */
         .sidebar {
             position: fixed;
             top: 0;
             right: 0;
             width: 260px;
             height: 100vh;
-            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
             padding-top: 0;
-            z-index: 1000;
+            z-index: 1040;
             overflow-y: auto;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            border-left: 1px solid rgba(255, 255, 255, 0.06);
         }
         .sidebar .brand {
-            padding: 1.2rem 1rem;
+            padding: 1.35rem 1.25rem;
             text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.4);
         }
         .sidebar .brand h5 {
             color: #fff;
             margin: 0;
-            font-weight: 700;
+            font-weight: 800;
+            font-size: 1.15rem;
+            letter-spacing: -0.02em;
         }
         .sidebar .brand small {
-            color: rgba(255,255,255,0.5);
+            color: #94a3b8;
             font-size: 0.75rem;
+            display: block;
+            margin-top: 2px;
+        }
+        .sidebar .section-title {
+            color: #64748b;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            padding: 1.1rem 1.25rem 0.4rem;
+            letter-spacing: 0.05em;
+            font-weight: 700;
         }
         .sidebar .nav-link {
-            color: rgba(255,255,255,0.7);
-            padding: 0.7rem 1.2rem;
+            color: #94a3b8;
+            padding: 0.65rem 1.25rem;
             font-size: 0.92rem;
-            border-radius: 0;
-            transition: all 0.2s;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+            position: relative;
+            margin: 2px 8px;
+            border-radius: 8px;
         }
-        .sidebar .nav-link:hover,
+        .sidebar .nav-link:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(-2px);
+        }
         .sidebar .nav-link.active {
-            color: #fff;
-            background: rgba(255,255,255,0.1);
+            color: #ffffff;
+            background: #4f46e5;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
         }
         .sidebar .nav-link i {
             width: 24px;
             text-align: center;
-            margin-left: 8px;
+            margin-left: 10px;
+            font-size: 1.1rem;
         }
-        .sidebar .section-title {
-            color: rgba(255,255,255,0.4);
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            padding: 1rem 1.2rem 0.4rem;
-            letter-spacing: 1px;
-            font-weight: 600;
+
+        /* Nautical Anchor Icon - Custom SVG Mask for Bootstrap Icons */
+        .bi-anchor::before {
+            content: "" !important;
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            vertical-align: -0.125em;
+            background-color: currentColor;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0a2.5 2.5 0 0 0-.5 4.95V6H6a.5.5 0 0 0 0 1h1.5v5.525A4.5 4.5 0 0 1 3.013 9H4.5a.5.5 0 0 0 0-1H1.5a.5.5 0 0 0-.5.5c0 4.142 3.358 7.5 7.5 7.5s7.5-3.358 7.5-7.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0 0 1h1.487A4.5 4.5 0 0 1 8.5 12.525V7H10a.5.5 0 0 0 0-1H8.5V4.95A2.5 2.5 0 0 0 8 0zM8 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E") no-repeat center / contain;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0a2.5 2.5 0 0 0-.5 4.95V6H6a.5.5 0 0 0 0 1h1.5v5.525A4.5 4.5 0 0 1 3.013 9H4.5a.5.5 0 0 0 0-1H1.5a.5.5 0 0 0-.5.5c0 4.142 3.358 7.5 7.5 7.5s7.5-3.358 7.5-7.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0 0 1h1.487A4.5 4.5 0 0 1 8.5 12.525V7H10a.5.5 0 0 0 0-1H8.5V4.95A2.5 2.5 0 0 0 8 0zM8 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z'/%3E%3C/svg%3E") no-repeat center / contain;
         }
-        /* Main content */
+
+        /* Main Content Layout */
         .main-content {
             margin-right: 260px;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: margin-right 0.3s ease;
         }
-        /* Top navbar */
+
+        /* Top Navbar (Glassmorphism) */
         .top-navbar {
-            background: #fff;
-            border-bottom: 1px solid #e0e0e0;
-            padding: 0.6rem 1.5rem;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0.75rem 1.75rem;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         .top-navbar .page-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #333;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #0f172a;
         }
+
         .content-area {
-            padding: 1.5rem;
+            padding: 1.75rem;
+            flex: 1;
         }
-        /* Print: hide sidebar and navbar */
-        @@media print {
-            .sidebar, .top-navbar { display: none !important; }
-            .main-content { margin-right: 0 !important; }
-        }
+
         /* Mobile responsive */
-        @@media (max-width: 768px) {
-            .sidebar { width: 0; overflow: hidden; }
-            .sidebar.show { width: 260px; }
-            .main-content { margin-right: 0; }
+        @@media (max-width: 991px) {
+            .sidebar {
+                transform: translateX(100%);
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-right: 0 !important;
+            }
+        }
+
+        /* Print Reset */
+        @@media print {
+            .sidebar, .top-navbar, .d-print-none {
+                display: none !important;
+            }
+            .main-content {
+                margin-right: 0 !important;
+                background: #fff !important;
+            }
+            .content-area {
+                padding: 0 !important;
+            }
         }
     </style>
 </head>
 <body>
     <!-- Sidebar -->
     <nav class="sidebar" id="sidebar">
-        <div class="brand">
-            <h5><i class="bi bi-calculator-fill me-1"></i> نظام المحاسبة</h5>
-            <small>Accountant System</small>
+        <div class="brand d-flex align-items-center justify-content-center gap-2">
+            <img src="~/FavIcon.jpg" asp-append-version="true" alt="Logo" class="rounded-circle border border-light border-opacity-25 shadow-sm" style="width: 36px; height: 36px; object-fit: cover;" />
+            <div class="text-end">
+                <h5 class="mb-0">المحاسب الذكي</h5>
+                <small>Accountant Pro & Invoicing</small>
+            </div>
         </div>
 
-        <div class="section-title">القائمة الرئيسية</div>
+        <!-- Sidebar Menu Categories -->
+        <div class="section-title"><i class="bi bi-speedometer2 me-1"></i> الرئيسية والمؤشرات</div>
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link" asp-controller="Home" asp-action="Index">
-                    <i class="bi bi-speedometer2"></i> لوحة التحكم
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Home" ? "active" : "")" asp-controller="Home" asp-action="Index">
+                    <i class="bi bi-speedometer2"></i> لوحة التحكم المالية
                 </a>
             </li>
         </ul>
 
-        <div class="section-title">المنتجات والأطراف</div>
+        <div class="section-title"><i class="bi bi-receipt-cutoff me-1"></i> المبيعات والتوريدات</div>
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link" asp-controller="Product" asp-action="Index">
-                    <i class="bi bi-box-seam"></i> المنتجات
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="Customer" asp-action="Index">
-                    <i class="bi bi-people-fill"></i> العملاء
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="Vendor" asp-action="Index">
-                    <i class="bi bi-truck"></i> الموردين
-                </a>
-            </li>
-        </ul>
-
-        <div class="section-title">الفواتير</div>
-        <ul class="nav flex-column">
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="Invoice" asp-action="Index">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Invoice" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" && string.IsNullOrEmpty(Context.Request.Query["type"]) ? "active" : "")" asp-controller="Invoice" asp-action="Index">
                     <i class="bi bi-collection"></i> جميع الفواتير
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" asp-controller="Invoice" asp-action="Index" asp-route-type="@((int)DAL.Enums.InvoiceType.VendorPurchase)">
+                <a class="nav-link @(Context.Request.Query["type"] == "1" ? "active" : "")" asp-controller="Invoice" asp-action="Index" asp-route-type="@((int)DAL.Enums.InvoiceType.WholesaleSales)">
+                    <i class="bi bi-receipt"></i> مبيعات الجملة
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(Context.Request.Query["type"] == "2" ? "active" : "")" asp-controller="Invoice" asp-action="Index" asp-route-type="@((int)DAL.Enums.InvoiceType.StoreCashSales)">
+                    <i class="bi bi-shop"></i> مبيعات التجزئة (كاش)
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(Context.Request.Query["type"] == "4" ? "active" : "")" asp-controller="Invoice" asp-action="Index" asp-route-type="@((int)DAL.Enums.InvoiceType.MaritimeSupply)">
+                    <i class="bi bi-anchor"></i> أوامر التوريد البحري
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(Context.Request.Query["type"] == "3" ? "active" : "")" asp-controller="Invoice" asp-action="Index" asp-route-type="@((int)DAL.Enums.InvoiceType.VendorPurchase)">
                     <i class="bi bi-cart-plus"></i> فواتير المشتريات
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" asp-controller="Invoice" asp-action="Index" asp-route-type="@((int)DAL.Enums.InvoiceType.WholesaleSales)">
-                    <i class="bi bi-receipt"></i> فواتير الجملة
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" asp-controller="Invoice" asp-action="Index" asp-route-type="@((int)DAL.Enums.InvoiceType.StoreCashSales)">
-                    <i class="bi bi-shop"></i> مبيعات التجزئة
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "CreditNote" ? "active" : "")" asp-controller="CreditNote" asp-action="Index">
+                    <i class="bi bi-arrow-return-left"></i> إشعارات المرتجع والخصم
                 </a>
             </li>
         </ul>
 
-        <div class="section-title">الخزينة</div>
+        <div class="section-title"><i class="bi bi-thermometer-snow me-1"></i> مخزون الأسماك المجمدة</div>
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link" href="#">
-                    <i class="bi bi-cash-stack"></i> حركات الخزينة
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Inventory" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Inventory" asp-action="Index">
+                    <i class="bi bi-thermometer-snow"></i> لوحة مخزون الثلاجات
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
-                    <i class="bi bi-credit-card"></i> المدفوعات
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Inventory" && ViewContext.RouteData.Values["Action"]?.ToString() == "StockIn" ? "active" : "")" asp-controller="Inventory" asp-action="StockIn">
+                    <i class="bi bi-box-arrow-in-down"></i> استلام وتوريد سمك (وارد)
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
-                    <i class="bi bi-wallet2"></i> المصروفات
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Inventory" && ViewContext.RouteData.Values["Action"]?.ToString() == "StockOut" ? "active" : "")" asp-controller="Inventory" asp-action="StockOut">
+                    <i class="bi bi-box-arrow-up"></i> صرف وتحميل سمك (صادر)
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
-                    <i class="bi bi-arrow-return-left"></i> المرتجعات
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Inventory" && ViewContext.RouteData.Values["Action"]?.ToString() == "Adjustment" ? "active" : "")" asp-controller="Inventory" asp-action="Adjustment">
+                    <i class="bi bi-sliders"></i> تسوية الجرد الفعلي
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Inventory" && ViewContext.RouteData.Values["Action"]?.ToString() == "Movements" ? "active" : "")" asp-controller="Inventory" asp-action="Movements">
+                    <i class="bi bi-clock-history"></i> سجل حركات المخزون
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Inventory" && ViewContext.RouteData.Values["Action"]?.ToString() == "StockReport" ? "active" : "")" asp-controller="Inventory" asp-action="StockReport">
+                    <i class="bi bi-clipboard-data"></i> تقرير أرصدة الثلاجات
                 </a>
             </li>
         </ul>
 
-        <div class="section-title">التقارير</div>
+        <div class="section-title"><i class="bi bi-people me-1"></i> الأطراف والحسابات التجارية</div>
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link" href="#">
-                    <i class="bi bi-calendar-check"></i> الإقفال اليومي
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Customer" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Customer" asp-action="Index">
+                    <i class="bi bi-people-fill"></i> عملاء الجملة والتجزئة
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
-                    <i class="bi bi-file-earmark-text"></i> كشف حساب عميل
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "MaritimeCompany" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")" asp-controller="MaritimeCompany" asp-action="Index">
+                    <i class="bi bi-compass"></i> شركات التوريد الملاحي
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
-                    <i class="bi bi-file-earmark-text"></i> كشف حساب مورد
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Vendor" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Vendor" asp-action="Index">
+                    <i class="bi bi-truck"></i> سجل الموردين
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "OpeningBalance" ? "active" : "")" asp-controller="OpeningBalance" asp-action="Index">
+                    <i class="bi bi-journal-bookmark"></i> الأرصدة الافتتاحية
                 </a>
             </li>
         </ul>
 
-        <div class="section-title">الإعدادات</div>
+        <div class="section-title"><i class="bi bi-boxes me-1"></i> المنتجات والتسعير</div>
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link" asp-controller="Account" asp-action="ChangePassword">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Product" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")" asp-controller="Product" asp-action="Index">
+                    <i class="bi bi-box-seam"></i> دليل الأصناف والأسعار
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Product" && ViewContext.RouteData.Values["Action"]?.ToString() == "Create" ? "active" : "")" asp-controller="Product" asp-action="Create">
+                    <i class="bi bi-plus-circle"></i> إضافة صنف جديد
+                </a>
+            </li>
+        </ul>
+
+        <div class="section-title"><i class="bi bi-cash-stack me-1"></i> الخزينة واليومية</div>
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Payment" ? "active" : "")" asp-controller="Payment" asp-action="Index">
+                    <i class="bi bi-credit-card-2-front"></i> سندات القبض والصرف
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "DailyClosing" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")" asp-controller="DailyClosing" asp-action="Index">
+                    <i class="bi bi-calendar-check"></i> جرد وإقفال اليومية
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "DailyClosing" && ViewContext.RouteData.Values["Action"]?.ToString() == "CloseDay" ? "active" : "")" asp-controller="DailyClosing" asp-action="CloseDay">
+                    <i class="bi bi-lock-fill"></i> تقفيل الوردية الحالية
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "ExpenseCategory" ? "active" : "")" asp-controller="ExpenseCategory" asp-action="Index">
+                    <i class="bi bi-tags"></i> بنود ومصروفات التشغيل
+                </a>
+            </li>
+        </ul>
+
+        <div class="section-title"><i class="bi bi-file-earmark-bar-graph me-1"></i> التقارير وكشوف الحسابات</div>
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Customer" && ViewContext.RouteData.Values["Action"]?.ToString() == "Statement" ? "active" : "")" asp-controller="Customer" asp-action="Statement">
+                    <i class="bi bi-file-earmark-person"></i> كشف حساب عميل
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "MaritimeCompany" && ViewContext.RouteData.Values["Action"]?.ToString() == "Statement" ? "active" : "")" asp-controller="MaritimeCompany" asp-action="Statement">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> كشف حساب شركة بحرية
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Vendor" && ViewContext.RouteData.Values["Action"]?.ToString() == "Statement" ? "active" : "")" asp-controller="Vendor" asp-action="Statement">
+                    <i class="bi bi-file-earmark-ruled"></i> كشف حساب مورد
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Inventory" && ViewContext.RouteData.Values["Action"]?.ToString() == "StockReport" ? "active" : "")" asp-controller="Inventory" asp-action="StockReport">
+                    <i class="bi bi-snow"></i> تقرير رصيد الثلاجات
+                </a>
+            </li>
+        </ul>
+
+        <div class="section-title"><i class="bi bi-gear-wide-connected me-1"></i> الإعدادات والأمان</div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Account" ? "active" : "")" asp-controller="Account" asp-action="ChangePassword">
                     <i class="bi bi-key-fill"></i> تغيير كلمة المرور
                 </a>
             </li>
         </ul>
     </nav>
 
-    <!-- Main Content -->
+    <!-- Main Content Wrapper -->
     <div class="main-content">
         <!-- Top Navbar -->
-        <div class="top-navbar">
-            <div>
-                <button class="btn btn-sm btn-outline-secondary d-md-none" onclick="document.getElementById('sidebar').classList.toggle('show')">
-                    <i class="bi bi-list"></i>
-                </button>
-                <span class="page-title me-2">@ViewData["Title"]</span>
-            </div>
+        <header class="top-navbar d-print-none">
             <div class="d-flex align-items-center gap-3">
-                <span class="text-muted small">
-                    <i class="bi bi-person-circle me-1"></i>
-                    @User.Identity?.Name
-                </span>
-                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-box-arrow-right me-1"></i> خروج
-                    </button>
-                </form>
+                <button class="btn btn-sm btn-outline-secondary d-lg-none" type="button" onclick="document.getElementById('sidebar').classList.toggle('show')">
+                    <i class="bi bi-list fs-5"></i>
+                </button>
+                <span class="page-title">@ViewData["Title"]</span>
             </div>
-        </div>
 
-        <!-- Page Content -->
-        <div class="content-area">
-            @if (TempData["SuccessMessage"] != null)
+            <!-- Quick Action Toolbar -->
+            <div class="d-flex align-items-center gap-2">
+                <a asp-controller="Invoice" asp-action="Create" class="btn btn-sm btn-primary shadow-sm">
+                    <i class="bi bi-plus-lg me-1"></i> فاتورة جديدة
+                </a>
+                <a asp-controller="Payment" asp-action="CustomerPayment" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-cash-stack me-1"></i> سند قبض
+                </a>
+                <a asp-controller="Inventory" asp-action="StockIn" class="btn btn-sm btn-outline-info d-none d-md-inline-flex align-items-center">
+                    <i class="bi bi-box-arrow-in-down me-1"></i> استلام سمك
+                </a>
+                <a asp-controller="DailyClosing" asp-action="CloseDay" class="btn btn-sm btn-outline-warning">
+                    <i class="bi bi-calendar-check me-1"></i> إقفال الوردية
+                </a>
+
+                <div class="vr mx-2 text-muted"></div>
+
+                <!-- User Profile & Logout -->
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-dark border p-2 d-none d-sm-inline-flex align-items-center gap-1">
+                        <i class="bi bi-person-circle text-primary"></i>
+                        <span class="fw-bold">@User.Identity?.Name</span>
+                    </span>
+                    <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="تسجيل الخروج">
+                            <i class="bi bi-box-arrow-right"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </header>
+
+        <!-- Body Content -->
+        <main class="content-area">
+            @if (TempData["SuccessMessage"] != null || TempData["Success"] != null)
             {
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    @TempData["SuccessMessage"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 d-flex align-items-center gap-2 mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                    <div>@(TempData["SuccessMessage"] ?? TempData["Success"])</div>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             }
-            @if (TempData["ErrorMessage"] != null)
+            @if (TempData["ErrorMessage"] != null || TempData["Error"] != null)
             {
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    @TempData["ErrorMessage"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 d-flex align-items-center gap-2 mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                    <div>@(TempData["ErrorMessage"] ?? TempData["Error"])</div>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+            @if (TempData["Warning"] != null)
+            {
+                <div class="alert alert-warning alert-dismissible fade show shadow-sm border-0 d-flex align-items-center gap-2 mb-4" role="alert">
+                    <i class="bi bi-info-circle-fill fs-5 text-warning"></i>
+                    <div>@TempData["Warning"]</div>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             }
 
             @RenderBody()
-        </div>
+        </main>
     </div>
 
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.js"></script>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/js/table-filter.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

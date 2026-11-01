@@ -1,4 +1,5 @@
 using DAL.Entities;
+using DAL.Enums;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,7 @@ namespace DAL.AppDbContext
         public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
         public DbSet<OpeningBalanceEntry> OpeningBalanceEntries => Set<OpeningBalanceEntry>();
         public DbSet<DailyClosing> DailyClosings => Set<DailyClosing>();
+        public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -37,6 +39,10 @@ namespace DAL.AppDbContext
                 entity.Property(p => p.PurchasePrice).HasPrecision(18, 2);
                 entity.Property(p => p.WholesalePrice).HasPrecision(18, 2);
                 entity.Property(p => p.RetailPrice).HasPrecision(18, 2);
+                entity.Property(p => p.DefaultCartonWeightKg).HasPrecision(18, 3);
+                entity.Property(p => p.MaritimePricePerKg).HasPrecision(18, 2);
+
+                entity.Property(p => p.Category).HasDefaultValue(ProductCategory.RegularProduct);
             });
 
             // ==========================================
@@ -48,6 +54,8 @@ namespace DAL.AppDbContext
                 entity.Property(c => c.Name).HasMaxLength(200).IsRequired();
                 entity.Property(c => c.PhoneNumber).HasMaxLength(50);
                 entity.Property(c => c.Address).HasMaxLength(300);
+
+                entity.Property(c => c.Type).HasDefaultValue(CustomerType.WholesaleCustomer);
             });
 
             // ==========================================
@@ -85,6 +93,12 @@ namespace DAL.AppDbContext
                 entity.Property(i => i.TotalAmount).HasPrecision(18, 2);
                 entity.Property(i => i.Notes).HasMaxLength(1000);
                 entity.Property(i => i.CancellationReason).HasMaxLength(500);
+                entity.Property(i => i.ExternalOrderNumber).HasMaxLength(100);
+
+                // Maritime supply orders: one external order number cannot be reused twice.
+                entity.HasIndex(i => i.ExternalOrderNumber)
+                      .IsUnique()
+                      .HasFilter("[Type] = 4 AND [ExternalOrderNumber] IS NOT NULL");
 
                 // Relationship: Customer -> Invoices (Wholesale)
                 entity.HasOne(i => i.Customer)
@@ -250,6 +264,51 @@ namespace DAL.AppDbContext
                       .WithMany(v => v.OpeningBalanceEntries)
                       .HasForeignKey(ob => ob.VendorId)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ==========================================
+            // StockMovement Configuration (Frozen Fish ledger)
+            // ==========================================
+            modelBuilder.Entity<StockMovement>(entity =>
+            {
+                entity.HasKey(sm => sm.Id);
+                entity.Property(sm => sm.ProductName).HasMaxLength(200).IsRequired();
+                entity.Property(sm => sm.Reason).HasMaxLength(500);
+
+                // Both dims tracked: cartons + KG with fractional support.
+                entity.Property(sm => sm.Cartons).HasPrecision(18, 3);
+                entity.Property(sm => sm.WeightPerCartonKg).HasPrecision(18, 3);
+                entity.Property(sm => sm.TotalWeightKg).HasPrecision(18, 3);
+
+                entity.HasIndex(sm => new { sm.ProductId, sm.MovementDate });
+
+                entity.HasOne(sm => sm.Product)
+                      .WithMany(p => p.StockMovements)
+                      .HasForeignKey(sm => sm.ProductId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(sm => sm.SourceInvoice)
+                      .WithMany(i => i.StockMovements)
+                      .HasForeignKey(sm => sm.SourceInvoiceId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(sm => sm.ReversalOfStockMovement)
+                      .WithMany(sm => sm.Reversals)
+                      .HasForeignKey(sm => sm.ReversalOfStockMovementId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(sm => sm.CreatedByUser)
+                      .WithMany()
+                      .HasForeignKey(sm => sm.CreatedByUserId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // In movements are positive; Out movements are negative deductions;
+                // Adjustments are signed corrections and cannot be zero.
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint("CK_StockMovements_InOut_Positive",
+                        "([MovementType] = 1 AND [TotalWeightKg] > 0 AND [Cartons] >= 0) OR ([MovementType] = 2 AND [TotalWeightKg] < 0 AND [Cartons] <= 0) OR ([MovementType] = 3 AND ([Cartons] <> 0 OR [TotalWeightKg] <> 0))");
+                });
             });
 
             // ==========================================

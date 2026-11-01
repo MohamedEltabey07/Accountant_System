@@ -1,0 +1,132 @@
+@model BLL.DTOs.Inventory.InComingData.CreateStockInDto
+@{
+    ViewData["Title"] = "استلام سمك مجمد";
+    var fishProducts = ViewBag.FishProducts as List<BLL.DTOs.Product.OutGoingData.ProductDto> ?? new();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="bi bi-box-arrow-in-down text-success me-2"></i> استلام وتوريد كراتين سمك (وارد الثلاجات)</h4>
+        <p class="text-muted small mb-0">تسجيل زيادة المخزون بالكراتين والوزن الإجمالي الفعلي</p>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-right me-1"></i> رجوع للمخزون
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 text-primary fw-bold">
+                    <i class="bi bi-plus-circle me-1"></i> بيانات إذن استلام السمك
+                </h5>
+                <small class="text-muted">تُسجل الكراتين الداخلة ووزنها معاً، ويُحسب الوزن الإجمالي المتوقع تلقائياً</small>
+            </div>
+            <div class="card-body p-4">
+                <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                <form asp-action="StockIn" method="post" id="stockInForm">
+                    <div class="mb-3">
+                        <label asp-for="ProductId" class="form-label fw-bold">صنف السمك المجمد <span class="text-danger">*</span></label>
+                        <select asp-for="ProductId" class="form-select form-select-lg" id="stockInProduct">
+                            <option value="">-- اختر صنف السمك من القائمة --</option>
+                            @foreach (var p in fishProducts.OrderBy(p => p.Name))
+                            {
+                                <option value="@p.Id" data-default-weight="@(p.DefaultCartonWeightKg?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")">
+                                    @p.Name @(p.DefaultCartonWeightKg.HasValue ? $"— (افتراضي: {p.DefaultCartonWeightKg:N3} كجم/كرتونة)" : "")
+                                </option>
+                            }
+                        </select>
+                        <span asp-validation-for="ProductId" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="MovementDate" class="form-label fw-bold">تاريخ الاستلام <span class="text-danger">*</span></label>
+                            <input asp-for="MovementDate" type="date" class="form-control" value="@Model.MovementDate.ToString("yyyy-MM-dd")" />
+                            <span asp-validation-for="MovementDate" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="Cartons" class="form-label fw-bold">عدد الكراتين <span class="text-danger">*</span></label>
+                            <input asp-for="Cartons" type="number" step="0.001" min="0.001" class="form-control" id="stockCartons" placeholder="مثال: 100" />
+                            <span asp-validation-for="Cartons" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="WeightPerCartonKg" class="form-label fw-bold">وزن الكرتونة (كجم)</label>
+                            <input asp-for="WeightPerCartonKg" type="number" step="0.001" min="0.001" class="form-control" id="stockPerCarton" placeholder="الافتراضي للصنف" />
+                            <span asp-validation-for="WeightPerCartonKg" class="text-danger small"></span>
+                            <div class="form-text small">اتركه فارغاً لاستخدام الوزن الافتراضي للصنف.</div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-success py-2 px-3 d-flex align-items-center justify-content-between mb-3 border-0 bg-success-subtle text-success-emphasis">
+                        <span class="fw-bold"><i class="bi bi-calculator me-1"></i> إجمالي الوزن المحسوب للبند:</span>
+                        <strong class="font-tabular fs-5 text-success" id="totalWeightPreview">-</strong>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="Notes" class="form-label fw-bold">ملاحظات الاستلام ومصدر الشحنة</label>
+                        <textarea asp-for="Notes" class="form-control" rows="2" placeholder="مثال: توريد دفعة أسماك مجمدة / رصيد أولي / مورد..."></textarea>
+                        <span asp-validation-for="Notes" class="text-danger small"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg me-1"></i> إلغاء
+                        </a>
+                        <button type="submit" class="btn btn-success px-4 fw-bold shadow-sm">
+                            <i class="bi bi-check-lg me-1"></i> تسجيل الاستلام في المخزون
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            const product = document.getElementById('stockInProduct');
+            const cartons = document.getElementById('stockCartons');
+            const perCarton = document.getElementById('stockPerCarton');
+            const preview = document.getElementById('totalWeightPreview');
+
+            function update() {
+                const opt = product.selectedOptions[0];
+                const defaultW = opt && opt.dataset.defaultWeight ? parseFloat(opt.dataset.defaultWeight) : 0;
+                
+                if (defaultW > 0) {
+                    perCarton.placeholder = `الافتراضي: ${defaultW} كجم`;
+                } else {
+                    perCarton.placeholder = 'افتراضي من دليل المنتجات';
+                }
+
+                const c = parseFloat(cartons.value) || 0;
+                const explicitW = parseFloat(perCarton.value);
+                const w = (!isNaN(explicitW) && explicitW > 0) ? explicitW : defaultW;
+
+                if (c > 0 && w > 0) {
+                    const total = c * w;
+                    preview.textContent = total.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' كجم';
+                } else {
+                    preview.textContent = '-';
+                }
+            }
+
+            product.addEventListener('change', function () {
+                const opt = product.selectedOptions[0];
+                if (opt && opt.dataset.defaultWeight && !perCarton.value) {
+                    perCarton.value = opt.dataset.defaultWeight;
+                }
+                update();
+            });
+
+            cartons.addEventListener('input', update);
+            perCarton.addEventListener('input', update);
+            update();
+        })();
+    </script>
+}

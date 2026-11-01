@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using System.Threading.Tasks;
 using Accountant_sys.Models;
+using BLL.IService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Accountant_sys.Controllers
 {
@@ -9,16 +12,19 @@ namespace Accountant_sys.Controllers
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
+        private readonly IDashboardService _dashboardService;
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(ILogger<HomeController> logger, IDashboardService dashboardService)
         {
             _logger = logger;
+            _dashboardService = dashboardService;
         }
 
         [HttpGet]
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
-            return View();
+            var metrics = await _dashboardService.GetDashboardMetricsAsync();
+            return View(metrics);
         }
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]

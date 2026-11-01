@@ -3,6 +3,7 @@ using BLL.DTOs.Product.InComingData;
 using BLL.DTOs.Product.OutGoingData;
 using BLL.IService;
 using DAL.Entities;
+using DAL.Enums;
 using DAL.IConfiguration;
 using System;
 using System.Collections.Generic;
@@ -24,10 +25,25 @@ namespace BLL.Service
         public async Task<bool> CreateProductAsync(CreateProductDto dto)
         {
             if (dto == null) return false;
+            ValidateFrozenFish(dto.Category, dto.DefaultCartonWeightKg);
             var mapToProduct = _mapper.Map<Product>(dto);
             await _unitOfWork.ProductRepo.AddAsync(mapToProduct);
             await _unitOfWork.SaveChangesAsync();
             return true;
+        }
+
+        private static void ValidateFrozenFish(ProductCategory category, decimal? cartonWeightKg)
+        {
+            if (category == ProductCategory.FrozenFish)
+            {
+                if (cartonWeightKg is null || cartonWeightKg <= 0)
+                    throw new InvalidOperationException("الأصناف المجمدة تتطلب تحديد وزن الكرتونة الافتراضي بالكجم.");
+            }
+            else
+            {
+                if (cartonWeightKg.HasValue && cartonWeightKg.Value > 0)
+                    throw new InvalidOperationException("وزن الكرتونة يستخدم لأصناف الأسماك المجمدة فقط.");
+            }
         }
 
         public async Task<bool> DeleteProductAsync(int id)
@@ -35,7 +51,7 @@ namespace BLL.Service
             var getProduct = await _unitOfWork.ProductRepo.GetByIdAsync(id);
             if (getProduct == null) return false;
             getProduct.IsActive = false;
-            await _unitOfWork.ProductRepo.Update(getProduct);
+            _unitOfWork.ProductRepo.Update(getProduct);
             await _unitOfWork.SaveChangesAsync();
             return true;
         }
@@ -45,6 +61,14 @@ namespace BLL.Service
             var listOfAvtiveProducts = await _unitOfWork.ProductRepo.GetActiveProductsAsync();
             var listOfAvtiveProductsDto = _mapper.Map<List<ProductDto>>(listOfAvtiveProducts);
             return listOfAvtiveProductsDto;
+        }
+
+        public async Task<List<ProductDto>> GetProductsByCategoryAsync(ProductCategory category, bool activeOnly = true)
+        {
+            var products = activeOnly
+                ? await _unitOfWork.ProductRepo.GetByCategoryAsync(category)
+                : (await _unitOfWork.ProductRepo.GetAllAsync()).Where(p => p.Category == category).ToList();
+            return _mapper.Map<List<ProductDto>>(products);
         }
 
         public async Task<List<ProductDto>> GetAllProductsAsync()
@@ -76,6 +100,7 @@ namespace BLL.Service
             if (dto == null) return false;
             var existanceProduct = await _unitOfWork.ProductRepo.GetByIdAsync(dto.Id);
             if (existanceProduct == null) return false;
+            ValidateFrozenFish(dto.Category, dto.DefaultCartonWeightKg);
             _mapper.Map(dto, existanceProduct);
             existanceProduct.UpdatedAt = DateTime.UtcNow;
             await _unitOfWork.SaveChangesAsync();

@@ -2,4 +2,5 @@
   <Project Path="Accountant_sys/Accountant_sys.csproj" />
   <Project Path="BLL/BLL.csproj" />
   <Project Path="DAL/DAL.csproj" />
+  <Project Path="Accountant_sys.Tests/Accountant_sys.Tests.csproj" />
 </Solution>

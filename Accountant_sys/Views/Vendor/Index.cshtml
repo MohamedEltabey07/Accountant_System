@@ -1,112 +1,154 @@
 @model List<BLL.DTOs.Vendor.OutGoingData.VendorDto>
 @{
-    ViewData["Title"] = "الموردين";
+    ViewData["Title"] = "سجل الموردين";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4><i class="bi bi-truck me-2"></i> الموردين</h4>
-    <a asp-action="Create" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> مورد جديد
-    </a>
+<!-- Page Header -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">
+            <i class="bi bi-truck text-danger me-2"></i> سجل الموردين والمشتريات
+        </h3>
+        <p class="text-muted mb-0">متابعة حسابات الموردين، الأرصدة المستحقة، ودفعات فواتير المشتريات</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-success shadow-sm" onclick="exportTableToCSV('vendorTable', 'سجل_الموردين')">
+            <i class="bi bi-file-earmark-excel me-1"></i> تصدير Excel
+        </button>
+        <a asp-action="Create" class="btn btn-primary shadow-sm fw-bold">
+            <i class="bi bi-plus-lg me-1"></i> مورد جديد
+        </a>
+    </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
+<!-- Search & Live Counter Toolbar -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body p-3">
+        <div class="row align-items-center g-2">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" placeholder="بحث فوري باسم المورد، الهاتف، أو الكود..." data-table-search="vendorTable" data-counter-target="vendorCounter" />
+                </div>
+            </div>
+            <div class="col-md-7 text-md-start">
+                <span class="badge bg-light text-dark border p-2 font-tabular" id="vendorCounter">
+                    عرض @Model.Count من إجمالي @Model.Count مورد
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vendors Table Card -->
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
         @if (Model.Count == 0)
         {
             <div class="text-center text-muted py-5">
-                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                <p class="fs-5 mb-1">لا يوجد موردين مسجلين بعد.</p>
-                <small>أضف أول مورد لتبدأ في تسجيل فواتير المشتريات.</small>
-                <div class="mt-3">
-                    <a asp-action="Create" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-plus-lg me-1"></i> إضافة مورد الآن
-                    </a>
-                </div>
+                <i class="bi bi-inbox fs-1 d-block mb-3 text-secondary"></i>
+                <h5 class="fw-bold text-dark">لا يوجد موردين مسجلين بعد</h5>
+                <p class="text-muted small">أضف أول مورد لتبدأ في تسجيل فواتير المشتريات وسداد الالتزامات.</p>
+                <a asp-action="Create" class="btn btn-primary btn-sm mt-2">
+                    <i class="bi bi-plus-lg me-1"></i> إضافة مورد جديد
+                </a>
             </div>
         }
         else
         {
             <div class="table-responsive">
-                <table class="table table-hover align-middle text-center mb-0">
-                    <thead class="table-light">
+                <table class="table table-modern align-middle text-center mb-0" id="vendorTable">
+                    <thead>
                         <tr>
-                            <th>#</th>
-                            <th>اسم المورد</th>
+                            <th style="width: 50px;">#</th>
+                            <th class="text-start">اسم المورد</th>
                             <th>رقم الهاتف</th>
                             <th>العنوان</th>
-                            <th>الرصيد المستحق</th>
+                            <th>الرصيد المستحق للمورد</th>
                             <th>الحالة</th>
-                            <th>إجراءات</th>
+                            <th class="no-export">الإجراءات والعمليات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var vendor in Model)
                         {
                             <tr>
-                                <td>@vendor.Id</td>
-                                <td class="fw-bold">@vendor.Name</td>
-                                <td>
-                                    @if (!string.IsNullOrEmpty(vendor.PhoneNumber))
-                                    {
-                                        <a href="tel:@vendor.PhoneNumber" class="text-decoration-none text-dark">
-                                            <i class="bi bi-telephone text-muted me-1"></i>@vendor.PhoneNumber
-                                        </a>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
-                                    }
+                                <td class="text-muted fw-bold font-tabular">@vendor.Id</td>
+                                <td class="text-start">
+                                    <div class="fw-bold text-dark fs-6">@vendor.Name</div>
+                                    <small class="text-muted">كود: #VND-@vendor.Id.ToString("D4")</small>
                                 </td>
-                                <td>@(string.IsNullOrEmpty(vendor.Address) ? "-" : vendor.Address)</td>
+                                <td class="font-tabular">
+                                    @(string.IsNullOrEmpty(vendor.PhoneNumber) ? "-" : vendor.PhoneNumber)
+                                </td>
                                 <td>
+                                    @(string.IsNullOrEmpty(vendor.Address) ? "-" : vendor.Address)
+                                </td>
+                                <td class="font-tabular">
                                     @if (vendor.CurrentBalance > 0)
                                     {
-                                        <span class="badge bg-danger-subtle text-danger border border-danger fs-6 px-2 py-1">
-                                            @vendor.CurrentBalance.ToString("N2") ج.م
-                                            <i class="bi bi-arrow-up-right small"></i>
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fs-6">
+                                            @vendor.CurrentBalance.ToString("N2") ج.م (دائن - له)
                                         </span>
                                     }
                                     else if (vendor.CurrentBalance < 0)
                                     {
-                                        <span class="badge bg-info-subtle text-info border border-info fs-6 px-2 py-1">
-                                            @vendor.CurrentBalance.ToString("N2") ج.م
-                                            <i class="bi bi-arrow-down-left small"></i>
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1 fs-6">
+                                            @Math.Abs(vendor.CurrentBalance).ToString("N2") ج.م (مدين - لنا)
                                         </span>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-success-subtle text-success border border-success fs-6 px-2 py-1">
-                                            0.00 ج.م
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                            0.00 ج.م (مطابق ومسدد)
                                         </span>
                                     }
                                 </td>
                                 <td>
                                     @if (vendor.IsActive)
                                     {
-                                        <span class="badge bg-success-subtle text-success">نشط</span>
+                                        <span class="badge bg-success">نشط</span>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-secondary-subtle text-secondary">معطل</span>
+                                        <span class="badge bg-secondary">معطل</span>
                                     }
                                 </td>
-                                <td>
+                                <td class="no-export">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-action="Details" asp-route-id="@vendor.Id" class="btn btn-outline-info" title="تفاصيل ورصيد">
-                                            <i class="bi bi-eye"></i>
+                                        <!-- Statement Shortcut -->
+                                        <a asp-action="Statement" asp-route-id="@vendor.Id" class="btn btn-outline-primary" title="كشف الحساب المالي">
+                                            <i class="bi bi-file-earmark-text"></i> كشف الحساب
                                         </a>
+
+                                        @if (vendor.CurrentBalance > 0)
+                                        {
+                                            <!-- Quick Payment Shortcut -->
+                                            <a asp-controller="Payment" asp-action="VendorPayment" asp-route-vendorId="@vendor.Id" class="btn btn-outline-danger" title="تسجيل سند صرف">
+                                                <i class="bi bi-wallet2"></i>
+                                            </a>
+                                        }
+
+                                        <!-- Edit -->
                                         <a asp-action="Edit" asp-route-id="@vendor.Id" class="btn btn-outline-warning" title="تعديل">
                                             <i class="bi bi-pencil"></i>
                                         </a>
+
+                                        <!-- Details -->
+                                        <a asp-action="Details" asp-route-id="@vendor.Id" class="btn btn-outline-info" title="تفاصيل الملف">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+
+                                        <!-- Toggle Status -->
                                         <form asp-action="ToggleStatus" asp-route-id="@vendor.Id" method="post" class="d-inline">
-                                            <button type="submit" class="btn btn-outline-secondary" title="تغيير الحالة (نشط/معطل)">
+                                            <button type="submit" class="btn btn-outline-secondary" title="تغيير الحالة النشطة">
                                                 <i class="bi bi-arrow-repeat"></i>
                                             </button>
                                         </form>
-                                        <form asp-action="Delete" asp-route-id="@vendor.Id" method="post" class="d-inline"
-                                              onsubmit="return confirm('هل أنت متأكد من إلغاء تنشيط هذا المورد؟');">
-                                            <button type="submit" class="btn btn-outline-danger" title="إلغاء التنشيط">
+
+                                        <!-- Delete / Deactivate with SweetAlert2 -->
+                                        <form asp-action="Delete" asp-route-id="@vendor.Id" method="post" class="d-inline">
+                                            <button type="button" class="btn btn-outline-danger" title="تعطيل المورد" data-confirm="هل أنت متأكد من تعطيل حساب المورد (@vendor.Name)؟">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>

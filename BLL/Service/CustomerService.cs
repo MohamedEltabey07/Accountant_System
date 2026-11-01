@@ -3,9 +3,11 @@ using BLL.DTOs.Customer.InComingData;
 using BLL.DTOs.Customer.OutGoingData;
 using BLL.IService;
 using DAL.Entities;
+using DAL.Enums;
 using DAL.IConfiguration;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace BLL.Service
@@ -34,14 +36,19 @@ namespace BLL.Service
             var existCustomer = await _unitOfWork.CustomerRepo.GetByIdAsync(id);
             if (existCustomer == null) return false;
             existCustomer.IsActive = false;
-            await _unitOfWork.CustomerRepo.Update(existCustomer);
+            _unitOfWork.CustomerRepo.Update(existCustomer);
             await _unitOfWork.SaveChangesAsync();
             return true;
         }
 
         public async Task<List<CustomerDto>> GetActiveCustomersAsync()
         {
-            var listOfActiveCustomers = await _unitOfWork.CustomerRepo.GetActiveCustomersAsync();
+            // Maritime companies share the Customer table but are managed in their
+            // own dedicated screens (MaritimeCompanyController); regular customer
+            // screens (invoices, payments defaults, customer directory) only ever
+            // deal with wholesale customers.
+            var listOfActiveCustomers = (await _unitOfWork.CustomerRepo.GetActiveCustomersAsync())
+                ?.Where(c => c.Type == CustomerType.WholesaleCustomer).ToList();
             if (listOfActiveCustomers == null) return null;
             var mapToCustomerDtoList = _mapper.Map<List<CustomerDto>>(listOfActiveCustomers);
             foreach (var cst in mapToCustomerDtoList)
@@ -51,7 +58,8 @@ namespace BLL.Service
 
         public async Task<List<CustomerDto>> GetAllCustomersAsync()
         {
-            var listOfActiveCustomers = await _unitOfWork.CustomerRepo.GetAllAsync();
+            var listOfActiveCustomers = (await _unitOfWork.CustomerRepo.GetAllAsync())
+                ?.Where(c => c.Type == CustomerType.WholesaleCustomer).ToList();
             if (listOfActiveCustomers == null) return null;
             var mapToCustomerDtoList = _mapper.Map<List<CustomerDto>>(listOfActiveCustomers);
             foreach (var cst in mapToCustomerDtoList)

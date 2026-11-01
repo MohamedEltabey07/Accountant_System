@@ -1,378 +1,964 @@
 @model BLL.DTOs.Invoice.OutGoingData.InvoiceDto
 @using DAL.Enums
+@using BLL.DTOs.CreditNote.OutGoingData
 @{
-    ViewData["Title"] = (Model.Status == InvoiceStatus.Draft ? "مسودة فاتورة" : "فاتورة رقم " + Model.InvoiceNumber);
     var isDraft = Model.Status == InvoiceStatus.Draft;
     var isPosted = Model.Status == InvoiceStatus.Posted;
     var isCancelled = Model.Status == InvoiceStatus.Cancelled;
+    var isMaritime = Model.Type == InvoiceType.MaritimeSupply;
+    
+    ViewData["Title"] = isDraft ? "مسودة فاتورة / عرض أسعار #" + Model.Id : "فاتورة: " + Model.InvoiceNumber;
+    
+    var returnedQuantities = ViewBag.ReturnedQuantities as Dictionary<int, decimal> ?? new Dictionary<int, decimal>();
+    var creditNotes = ViewBag.CreditNotes as List<CreditNoteDto> ?? new List<CreditNoteDto>();
+    var totalReturnedAmount = (decimal)(ViewBag.TotalReturnedAmount ?? 0m);
+}
+
+@functions {
+    // Professional Arabic Tafqeet (Number to Words)
+    private static readonly string[] Ones = { "", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر" };
+    private static readonly string[] Tens = { "", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون" };
+    private static readonly string[] Hundreds = { "", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة" };
+
+    public static string ToArabicWords(decimal amount)
+    {
+        if (amount == 0) return "صفر جنيه مصري لا غير";
+        long integerPart = (long)Math.Floor(amount);
+        int decimalPart = (int)Math.Round((amount - integerPart) * 100);
+
+        string words = ConvertGroup(integerPart);
+        string result = "فقط " + words + " جنيهاً مصرياً";
+        if (decimalPart > 0)
+        {
+            result += " و " + ConvertGroup(decimalPart) + " قرشاً";
+        }
+        result += " لا غير";
+        return result;
+    }
+
+    private static string ConvertGroup(long number)
+    {
+        if (number == 0) return "";
+        if (number < 20) return Ones[number];
+        if (number < 100)
+        {
+            long unit = number % 10;
+            long ten = number / 10;
+            return (unit > 0 ? Ones[unit] + " و " : "") + Tens[ten];
+        }
+        if (number < 1000)
+        {
+            long rem = number % 100;
+            long hundred = number / 100;
+            return Hundreds[hundred] + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        if (number < 1000000)
+        {
+            long rem = number % 1000;
+            long thousands = number / 1000;
+            string thText = thousands == 1 ? "ألف" : (thousands == 2 ? "ألفان" : (thousands <= 10 ? ConvertGroup(thousands) + " آلاف" : ConvertGroup(thousands) + " ألفاً"));
+            return thText + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        long millRem = number % 1000000;
+        long millions = number / 1000000;
+        string millText = millions == 1 ? "مليون" : (millions == 2 ? "مليونان" : (millions <= 10 ? ConvertGroup(millions) + " ملايين" : ConvertGroup(millions) + " مليوناً"));
+        return millText + (millRem > 0 ? " و " + ConvertGroup(millRem) : "");
+    }
 }
 
 <style>
-    @@media print {
-        .no-print { display: none !important; }
-        .card { border: none !important; box-shadow: none !important; }
-        .main-content { margin: 0 !important; padding: 0 !important; }
-        body { background: #fff !important; }
-        .invoice-print-header { display: block !important; }
+    /* ==========================================================================
+       Print & Screen Stylesheet (A4 Standard & 80mm Thermal Receipt Engine)
+       ========================================================================== */
+    @@page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
     }
-    .invoice-print-header { display: none; }
+
+    .invoice-container {
+        max-width: 920px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+    }
+
+    .table-invoice {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-invoice th {
+        background-color: #0f172a;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.75rem 0.6rem;
+        border: 1px solid #0f172a;
+        text-align: center;
+    }
+
+    .table-invoice td {
+        padding: 0.65rem 0.6rem;
+        border: 1px solid #cbd5e1;
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    .watermark-badge {
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        border-radius: 6px;
+        padding: 0.35rem 0.85rem;
+        display: inline-block;
+    }
+
+    .totals-box {
+        background-color: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 1.25rem;
+    }
+
+    .unpaid-highlight-box {
+        background: #fff1f2;
+        border: 2px solid #f43f5e;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+    }
+
+    .paid-highlight-box {
+        background: #f0fdf4;
+        border: 2px solid #10b981;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+    }
+
+    .draft-banner-print {
+        display: none;
+    }
+
+    /* 80mm Thermal Receipt Layout (Hidden by default on screen and regular print) */
+    .thermal-receipt-container {
+        display: none;
+    }
+
+    /* Print Mode Reset (A4 Default) */
+    @@media print {
+        html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 12px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .d-print-none,
+        .sidebar,
+        .top-navbar,
+        .btn,
+        .alert,
+        header {
+            display: none !important;
+        }
+
+        .main-content,
+        .content-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+        }
+
+        .invoice-container {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* Prevent awkward page cuts */
+        .invoice-print-header,
+        .invoice-party-card,
+        .invoice-table-wrapper,
+        .invoice-summary-box,
+        .invoice-signature-block,
+        tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+
+        .table-invoice th {
+            background-color: #0f172a !important;
+            color: #ffffff !important;
+        }
+
+        .draft-banner-print {
+            display: block !important;
+            border: 2px dashed #f59e0b !important;
+            background-color: #fffbeb !important;
+            color: #92400e !important;
+            padding: 8px 12px !important;
+            text-align: center !important;
+            font-weight: 800 !important;
+            font-size: 13px !important;
+            border-radius: 6px !important;
+            margin-bottom: 12px !important;
+        }
+    }
+
+    /* Specialized 80mm Thermal Mode */
+    @@media print {
+        body.thermal-print-mode {
+            width: 76mm !important;
+            max-width: 76mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-family: 'Cairo', 'Segoe UI', sans-serif !important;
+            font-size: 11px !important;
+            line-height: 1.35 !important;
+            color: #000 !important;
+        }
+
+        body.thermal-print-mode .invoice-container {
+            display: none !important;
+        }
+
+        body.thermal-print-mode .thermal-receipt-container {
+            display: block !important;
+            width: 76mm !important;
+            max-width: 76mm !important;
+            margin: 0 auto !important;
+            padding: 4mm 2mm !important;
+            box-sizing: border-box !important;
+        }
+
+        body.thermal-print-mode .thermal-receipt-container table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 10px !important;
+        }
+
+        body.thermal-print-mode .thermal-receipt-container td,
+        body.thermal-print-mode .thermal-receipt-container th {
+            padding: 3px 1px !important;
+            border-bottom: 1px dashed #cbd5e1 !important;
+        }
+
+        body.thermal-print-mode .thermal-divider {
+            border-top: 1px dashed #000 !important;
+            margin: 6px 0 !important;
+        }
+        
+        body.thermal-print-mode .thermal-divider-double {
+            border-top: 2px solid #000 !important;
+            margin: 6px 0 !important;
+        }
+    }
 </style>
 
-<!-- Top Actions Bar (Hidden on Print) -->
-<div class="d-flex justify-content-between align-items-center mb-3 no-print">
-    <div class="d-flex align-items-center gap-2">
-        <h4>
-            <i class="bi bi-receipt me-1"></i>
-            @(isDraft ? "مسودة فاتورة #" + Model.Id : "فاتورة: " + Model.InvoiceNumber)
+<!-- Top Interactive Action & Print Toolbar (Hidden on Print) -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2 d-print-none">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-right me-1"></i> رجوع للفواتير
+        </a>
+        <h4 class="mb-0 fw-bold text-dark">
+            <i class="bi @(isMaritime ? "bi-anchor text-info" : "bi-receipt text-primary") me-1"></i>
+            @(isDraft ? "مسودة فاتورة #" + Model.Id : (isMaritime ? "أمر توريد: " : "فاتورة: ") + Model.InvoiceNumber)
         </h4>
         @if (isDraft)
         {
-            <span class="badge bg-warning text-dark fs-6">مسودة قيد التعديل</span>
+            <span class="badge bg-warning text-dark fs-6">
+                <i class="bi bi-pencil-square me-1"></i> مسودة قيد التعديل
+            </span>
         }
         else if (isPosted)
         {
-            <span class="badge bg-success fs-6">مرحّلة ومعتمدة</span>
+            <span class="badge bg-success fs-6">
+                <i class="bi bi-check2-circle me-1"></i> مرحّلة ومعتمدة رسمياً
+            </span>
         }
         else if (isCancelled)
         {
-            <span class="badge bg-danger fs-6">ملغاة</span>
+            <span class="badge bg-danger fs-6">
+                <i class="bi bi-x-octagon me-1"></i> ملغاة
+            </span>
         }
     </div>
-    <div class="d-flex gap-2">
+
+    <!-- Print Modes & Operation Buttons -->
+    <div class="d-flex align-items-center gap-2 flex-wrap">
         @if (isPosted)
         {
-            <button onclick="window.print()" class="btn btn-outline-dark">
-                <i class="bi bi-printer me-1"></i> طباعة الفاتورة
+            <button type="button" onclick="window.print()" class="btn btn-primary shadow-sm fw-bold">
+                <i class="bi bi-printer-fill me-1"></i> طباعة A4
             </button>
+            <button type="button" onclick="printThermalReceipt()" class="btn btn-outline-dark shadow-sm fw-bold" title="طباعة إيصال كاشير مقاس 80 مم للرول الحراري">
+                <i class="bi bi-receipt me-1"></i> إيصال كاشير (80mm)
+            </button>
+
+            @if (Model.RemainingBalance > 0 && (Model.Type == InvoiceType.WholesaleSales || Model.Type == InvoiceType.MaritimeSupply))
+            {
+                <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.CustomerId" class="btn btn-success shadow-sm fw-bold">
+                    <i class="bi bi-cash-stack me-1"></i> تسجيل دفعة نقدية
+                </a>
+            }
+
+            @if (Model.RemainingBalance > 0 && Model.Type == InvoiceType.VendorPurchase)
+            {
+                <a asp-controller="Payment" asp-action="VendorPayment" asp-route-vendorId="@Model.VendorId" class="btn btn-danger shadow-sm fw-bold">
+                    <i class="bi bi-wallet2 me-1"></i> سداد للمورد
+                </a>
+            }
+
             @if (Model.PaidAmount == 0)
             {
-                <a asp-action="Cancel" asp-route-id="@Model.Id" class="btn btn-outline-danger">
+                <a asp-action="Cancel" asp-route-id="@Model.Id" class="btn btn-outline-danger btn-sm"
+                   data-confirm="هل تريد بالتأكيد إلغاء هذه الفاتورة؟ لن يمكنك التراجع عن ذلك.">
                     <i class="bi bi-x-circle me-1"></i> إلغاء الفاتورة
                 </a>
             }
         }
         else if (isDraft)
         {
-            <form asp-action="Post" asp-route-id="@Model.Id" method="post" class="d-inline"
-                  onsubmit="return confirm('هل أنت متأكد من ترحيل هذه الفاتورة؟ سيتم تجميد الأسعار والكميات وتحديث الأرصدة المالية.');">
-                <button type="submit" class="btn btn-success" @(Model.Items.Count == 0 ? "disabled" : "")>
-                    <i class="bi bi-check-all me-1"></i> ترحيل واعتماد الفاتورة
+            <!-- Print draft as a formal quotation / proforma quote -->
+            <button type="button" onclick="window.print()" class="btn btn-outline-primary shadow-sm fw-bold" title="طباعة عرض أسعار أو مسودة للعميل قبل الترحيل">
+                <i class="bi bi-printer me-1"></i> طباعة عرض أسعار (A4)
+            </button>
+            <button type="button" onclick="printThermalReceipt()" class="btn btn-outline-secondary shadow-sm" title="طباعة مسودة إيصال كاشير">
+                <i class="bi bi-receipt me-1"></i> إيصال مسودة (80mm)
+            </button>
+
+            <form asp-action="Post" asp-route-id="@Model.Id" method="post" class="d-inline">
+                <button type="button" class="btn btn-success fw-bold shadow-sm" @(Model.Items.Count == 0 ? "disabled" : "")
+                        data-confirm="هل أنت متأكد من ترحيل هذه الفاتورة؟ سيتم اعتماد الأسعار والكميات وتحديث الأرصدة المالية والخصم من المخزون.">
+                    <i class="bi bi-check2-all me-1"></i> ترحيل واعتماد الفاتورة
                 </button>
             </form>
         }
-        <a asp-action="Index" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-right me-1"></i> رجوع للسجل
-        </a>
     </div>
 </div>
 
-<!-- Draft Notice Banner -->
+<!-- Draft Notice Banner (Screen Only) -->
 @if (isDraft)
 {
-    <div class="alert alert-warning d-flex align-items-center gap-2 shadow-sm no-print mb-3" role="alert">
-        <i class="bi bi-info-circle-fill fs-4 text-warning"></i>
+    <div class="alert alert-warning d-flex align-items-center gap-3 shadow-sm d-print-none mb-4" role="alert">
+        <i class="bi bi-info-circle-fill fs-3 text-warning"></i>
         <div>
-            <strong>تنبيه مسودة:</strong> هذه الفاتورة لم تُرحل بعد. يمكنك إضافة البنود أو تعديلها أو حذفها بحرية. لن تظهر في الأرصدة المالية أو حسابات العملاء/الموردين إلا بعد الضغط على <strong>ترحيل واعتماد الفاتورة</strong>.
-            @if (Model.Items.Count == 0)
-            {
-                <span class="text-danger fw-bold d-block mt-1">يجب إضافة بند واحد على الأقل قبل التمكن من الترحيل.</span>
-            }
+            <strong class="d-block">تنبيه المسودة وعرض الأسعار:</strong>
+            هذه الفاتورة ما زالت قيد التعديل ولم تُرحل إلى الأرصدة أو دفاتر العملاء والمخازن. يمكنك إضافة وتعديل البنود بحرية قبل الترحيل، أو طباعتها كـ <strong>عرض أسعار مبدئي</strong>.
         </div>
     </div>
 }
 else if (isCancelled)
 {
-    <div class="alert alert-danger d-flex align-items-center gap-2 shadow-sm mb-3" role="alert">
-        <i class="bi bi-x-octagon-fill fs-4 text-danger"></i>
+    <div class="alert alert-danger d-flex align-items-center gap-3 shadow-sm d-print-none mb-4" role="alert">
+        <i class="bi bi-x-octagon-fill fs-3 text-danger"></i>
         <div>
-            <strong>تم إلغاء هذه الفاتورة:</strong>
-            بتاريخ @(Model.CancelledAt?.ToString("yyyy/MM/dd hh:mm tt") ?? "-")
-            <div class="mt-1">سبب الإلغاء: <em>@(Model.CancellationReason ?? "غير محدد")</em></div>
+            <strong class="d-block">فاتورة ملغاة:</strong>
+            تم إلغاء هذه الفاتورة بتاريخ @(Model.CancelledAt?.ToString("yyyy-MM-dd hh:mm tt") ?? "-") - سبب الإلغاء: @(Model.CancellationReason ?? "غير محدد").
         </div>
     </div>
 }
 
-<!-- Printable Header for Invoices -->
-<div class="invoice-print-header text-center mb-4 pb-3 border-bottom">
-    <h2 class="fw-bold mb-1">مؤسسة التجارة الحديثة</h2>
-    <p class="text-muted mb-1">نظام إدارة المحاسبة والمبيعات</p>
-    <h4 class="fw-bold mt-2">
-        @switch (Model.Type)
-        {
-            case InvoiceType.VendorPurchase:
-                <span>فاتورة مشتريات مورد</span>
-                break;
-            case InvoiceType.WholesaleSales:
-                <span>فاتورة مبيعات جملة</span>
-                break;
-            case InvoiceType.StoreCashSales:
-                <span>فاتورة مبيعات تجزئة نقدي</span>
-                break;
-        }
-    </h4>
-    <div class="font-monospace fs-5">@Model.InvoiceNumber</div>
-</div>
+<!-- ==========================================================================
+     1. THE OFFICIAL A4 PRINTABLE INVOICE SHEET
+     ========================================================================== -->
+<div class="invoice-container p-4 p-md-5">
 
-<!-- Invoice Information Card -->
-<div class="card shadow-sm mb-4">
-    <div class="card-header bg-white py-3">
-        <div class="row align-items-center">
-            <div class="col-sm-6">
-                <h5 class="card-title mb-0 text-primary">
-                    <i class="bi bi-file-text me-1"></i> بيانات الفاتورة
-                </h5>
-            </div>
-            <div class="col-sm-6 text-sm-start mt-2 mt-sm-0">
-                <span class="text-muted small">تاريخ التحرير:</span>
-                <span class="fw-bold">@Model.TransactionDate.ToString("yyyy/MM/dd")</span>
-            </div>
+    <!-- Draft Watermark Banner (Appears in Print when Invoice is Draft) -->
+    @if (isDraft)
+    {
+        <div class="draft-banner-print">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            مسودة تسعيرة وعرض أسعار مبدئي — غير مرحلة بالدفاتر ولا تعتبر فاتورة ضريبية رسمية
         </div>
-    </div>
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-3">
-                <div class="text-muted small">نوع الفاتورة</div>
-                <div class="fw-semibold">
-                    @switch (Model.Type)
-                    {
-                        case InvoiceType.VendorPurchase:
-                            <span class="badge bg-secondary-subtle text-secondary border">مشتريات من مورد</span>
-                            break;
-                        case InvoiceType.WholesaleSales:
-                            <span class="badge bg-primary-subtle text-primary border">مبيعات جملة</span>
-                            break;
-                        case InvoiceType.StoreCashSales:
-                            <span class="badge bg-info-subtle text-info border">مبيعات تجزئة نقدي</span>
-                            break;
-                    }
+    }
+
+    <!-- Header Section (Commercial & Tax Header) -->
+    <div class="invoice-print-header pb-3 mb-4 border-bottom">
+        <div class="row align-items-center g-3">
+            <!-- Merchant Brand Info (RTL Right) -->
+            <div class="col-5">
+                <h3 class="fw-bold text-dark mb-1">
+                    <i class="bi bi-shield-check text-primary me-1"></i> مؤسسة التجارة والتوريدات
+                </h3>
+                <div class="small text-muted">إدارة مبيعات الجملة، التجزئة، وتوريد الأسماك المجمدة</div>
+                <div class="small text-muted mt-1">
+                    <span><strong>س.ت:</strong> 104928</span> | 
+                    <span><strong>ب.ض:</strong> 482-901-332</span>
+                </div>
+                <div class="small text-muted">
+                    <i class="bi bi-geo-alt me-1"></i> جمهورية مصر العربية - المركز الرئيسي | هاتف: 01000000000
                 </div>
             </div>
 
-            <div class="col-md-3">
-                <div class="text-muted small">الطرف المعني</div>
-                <div class="fw-bold fs-6">
-                    @if (Model.Type == InvoiceType.VendorPurchase)
+            <!-- Invoice Status Stamp & Type (Center) -->
+            <div class="col-3 text-center">
+                <h5 class="fw-bold mb-2">
+                    @if (isDraft)
                     {
-                        <a asp-controller="Vendor" asp-action="Details" asp-route-id="@Model.VendorId" class="text-decoration-none">
-                            <i class="bi bi-truck me-1"></i> @(Model.VendorName ?? "-")
-                        </a>
-                    }
-                    else if (Model.Type == InvoiceType.WholesaleSales)
-                    {
-                        <a asp-controller="Customer" asp-action="Details" asp-route-id="@Model.CustomerId" class="text-decoration-none">
-                            <i class="bi bi-person me-1"></i> @(Model.CustomerName ?? "-")
-                        </a>
+                        <span class="text-warning-emphasis">
+                            <i class="bi bi-file-earmark-text me-1"></i> عرض أسعار / مسودة
+                        </span>
                     }
                     else
                     {
-                        <span class="text-muted"><i class="bi bi-cash me-1"></i> عميل نقدي (فوري)</span>
+                        @switch (Model.Type)
+                        {
+                            case InvoiceType.VendorPurchase:
+                                <span class="text-secondary"><i class="bi bi-cart-check me-1"></i> فاتورة مشتريات</span>
+                                break;
+                            case InvoiceType.WholesaleSales:
+                                <span class="text-primary"><i class="bi bi-receipt me-1"></i> فاتورة مبيعات جملة</span>
+                                break;
+                            case InvoiceType.StoreCashSales:
+                                <span class="text-success"><i class="bi bi-shop me-1"></i> فاتورة مبيعات تجزئة</span>
+                                break;
+                            case InvoiceType.MaritimeSupply:
+                                <span class="text-info"><i class="bi bi-anchor me-1"></i> أمر توريد شركة بحرية</span>
+                                break;
+                        }
                     }
-                </div>
-            </div>
-
-            <div class="col-md-3">
-                <div class="text-muted small">حالة السداد</div>
+                </h5>
                 <div>
-                    @switch (Model.PaymentStatus)
+                    @if (isDraft)
                     {
-                        case InvoicePaymentStatus.Paid:
-                            <span class="badge bg-success">مسددة بالكامل</span>
-                            break;
-                        case InvoicePaymentStatus.PartiallyPaid:
-                            <span class="badge bg-warning text-dark">مسددة جزئياً</span>
-                            break;
-                        case InvoicePaymentStatus.Unpaid:
-                            <span class="badge bg-danger">غير مسددة</span>
-                            break;
+                        <span class="watermark-badge bg-warning-subtle text-warning-emphasis border border-warning">
+                            <i class="bi bi-clock-history me-1"></i> مسودة عمل غير مرحلة
+                        </span>
+                    }
+                    else
+                    {
+                        @switch (Model.PaymentStatus)
+                        {
+                            case InvoicePaymentStatus.Paid:
+                                <span class="watermark-badge bg-success-subtle text-success border border-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i> مسددة بالكامل
+                                </span>
+                                break;
+                            case InvoicePaymentStatus.PartiallyPaid:
+                                <span class="watermark-badge bg-warning-subtle text-warning-emphasis border border-warning">
+                                    <i class="bi bi-hourglass-split me-1"></i> مسددة جزئياً
+                                </span>
+                                break;
+                            case InvoicePaymentStatus.Unpaid:
+                                <span class="watermark-badge bg-danger-subtle text-danger border border-danger">
+                                    <i class="bi bi-exclamation-circle-fill me-1"></i> غير مسددة (آجل)
+                                </span>
+                                break;
+                        }
                     }
                 </div>
             </div>
 
-            <div class="col-md-3">
-                <div class="text-muted small">تاريخ الترحيل / الإنشاء</div>
-                <div class="small">
-                    @(Model.PostedAt.HasValue ? Model.PostedAt.Value.ToString("yyyy/MM/dd hh:mm tt") : Model.CreatedAt.ToString("yyyy/MM/dd hh:mm tt"))
+            <!-- Invoice Number, Date & QR (RTL Left) -->
+            <div class="col-4 text-start">
+                <div class="d-flex justify-content-end align-items-center gap-3">
+                    <div>
+                        <div class="text-muted small">@(isDraft ? "كود المسودة:" : "رقم الفاتورة:")</div>
+                        <h4 class="fw-bold font-tabular text-dark mb-1 font-monospace">
+                            @(isDraft ? "#DRAFT-" + Model.Id.ToString("D4") : Model.InvoiceNumber)
+                        </h4>
+                        <div class="small text-muted">التاريخ: <strong>@Model.TransactionDate.ToString("yyyy-MM-dd")</strong></div>
+                        <div class="small text-muted">الوقت: <strong>@(Model.PostedAt.HasValue ? Model.PostedAt.Value.ToString("hh:mm tt") : Model.CreatedAt.ToString("hh:mm tt"))</strong></div>
+                        @if (isMaritime)
+                        {
+                            <div class="small text-muted mt-1">
+                                <i class="bi bi-hash"></i> أمر الشركة: <strong class="text-dark font-monospace">@(string.IsNullOrWhiteSpace(Model.ExternalOrderNumber) ? "-" : Model.ExternalOrderNumber)</strong>
+                            </div>
+                            <div class="small text-muted">
+                                <i class="bi bi-calendar-event"></i> تاريخ الأمر: <strong>@(Model.SupplyOrderDate?.ToString("yyyy-MM-dd") ?? "-")</strong>
+                            </div>
+                        }
+                    </div>
+                    <!-- Official QR Code Placeholder -->
+                    <div class="p-1 border rounded bg-light text-center" style="width: 70px; height: 70px;">
+                        <svg viewBox="0 0 100 100" width="60" height="60" style="margin-top: 1px;">
+                            <rect width="100" height="100" fill="#ffffff" />
+                            <rect x="5" y="5" width="30" height="30" fill="#0f172a" />
+                            <rect x="10" y="10" width="20" height="20" fill="#ffffff" />
+                            <rect x="13" y="13" width="14" height="14" fill="#0f172a" />
+                            <rect x="65" y="5" width="30" height="30" fill="#0f172a" />
+                            <rect x="70" y="10" width="20" height="20" fill="#ffffff" />
+                            <rect x="73" y="13" width="14" height="14" fill="#0f172a" />
+                            <rect x="5" y="65" width="30" height="30" fill="#0f172a" />
+                            <rect x="10" y="70" width="20" height="20" fill="#ffffff" />
+                            <rect x="13" y="73" width="14" height="14" fill="#0f172a" />
+                            <rect x="42" y="10" width="16" height="20" fill="#0f172a" />
+                            <rect x="42" y="42" width="16" height="16" fill="#0f172a" />
+                            <rect x="65" y="42" width="25" height="15" fill="#0f172a" />
+                            <rect x="65" y="65" width="12" height="25" fill="#0f172a" />
+                            <rect x="82" y="75" width="12" height="15" fill="#0f172a" />
+                            <rect x="42" y="65" width="16" height="25" fill="#0f172a" />
+                        </svg>
+                    </div>
                 </div>
             </div>
-
-            @if (!string.IsNullOrEmpty(Model.Notes))
-            {
-                <div class="col-12 mt-2 pt-2 border-top">
-                    <span class="text-muted small fw-bold">ملاحظات:</span>
-                    <span class="small">@Model.Notes</span>
-                </div>
-            }
         </div>
     </div>
-</div>
 
-<!-- Add Item Section (Only in Draft Mode) -->
-@if (isDraft)
-{
-    <div class="card shadow-sm mb-4 border-primary no-print">
-        <div class="card-header bg-primary text-white py-2">
-            <h6 class="card-title mb-0">
-                <i class="bi bi-plus-circle me-1"></i> إضافة بند جديد للمسودة
-            </h6>
-        </div>
-        <div class="card-body">
-            <form asp-action="AddItem" method="post" class="row g-2 align-items-end">
-                <input type="hidden" name="InvoiceId" value="@Model.Id" />
-
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold">المنتج <span class="text-danger">*</span></label>
-                    <select name="ProductId" class="form-select form-select-sm" asp-items="ViewBag.Products" required>
-                        <option value="">-- اختر المنتج من المخزن --</option>
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label small fw-bold">الكمية <span class="text-danger">*</span></label>
-                    <input type="number" step="0.001" min="0.001" name="Quantity" class="form-control form-control-sm" value="1" required />
-                </div>
-
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold">سعر الوحدة (ج.م) <small class="text-muted fw-normal">(اختياري)</small></label>
-                    <input type="number" step="0.01" min="0" name="UnitPrice" class="form-control form-control-sm" placeholder="اتركه فارغاً لاستخدام سعر الصنف" />
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label small fw-bold">خصم البند (ج.م)</label>
-                    <input type="number" step="0.01" min="0" name="LineDiscountAmount" class="form-control form-control-sm" value="0.00" />
-                </div>
-
-                <div class="col-md-1">
-                    <button type="submit" class="btn btn-primary btn-sm w-100">
-                        <i class="bi bi-plus-lg"></i> إضافة
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-}
-
-<!-- Invoice Items Table -->
-<div class="card shadow-sm mb-4">
-    <div class="card-header bg-white py-3">
-        <h5 class="card-title mb-0">
-            <i class="bi bi-list-check me-1"></i> بنود الفاتورة (@Model.Items.Count بند)
-        </h5>
-    </div>
-    <div class="card-body p-0">
-        @if (Model.Items.Count == 0)
-        {
-            <div class="text-center text-muted py-5">
-                <i class="bi bi-cart-x fs-1 d-block mb-2"></i>
-                <p class="fs-5 mb-1">لا توجد بنود في الفاتورة بعد.</p>
-                <small>استخدم النموذج أعلاه لإضافة المنتجات إلى هذه المسودة.</small>
+    <!-- Party Information Card (Two Columns) -->
+    <div class="invoice-party-card p-3 rounded-3 border bg-light mb-4">
+        <div class="row g-3">
+            <!-- Party Data -->
+            <div class="col-md-7 border-start">
+                <span class="text-muted small fw-bold d-block mb-1">
+                    @(Model.Type == InvoiceType.VendorPurchase ? "بيانات المورد (طرف التعامل):" : isMaritime ? "بيانات شركة التوريد الملاحي (المشتري):" : "بيانات العميل (المشتري):")
+                </span>
+                <h5 class="fw-bold text-dark mb-1">
+                    @if (Model.Type == InvoiceType.VendorPurchase)
+                    {
+                        @(Model.VendorName ?? "مورد غير محدد")
+                    }
+                    else if (Model.Type == InvoiceType.WholesaleSales)
+                    {
+                        @(Model.CustomerName ?? "عميل جملة")
+                    }
+                    else if (isMaritime)
+                    {
+                        <span><i class="bi bi-anchor text-info me-1"></i>@(Model.CustomerName ?? "شركة بحرية غير محددة")</span>
+                    }
+                    else
+                    {
+                        <span>عميل تجزئة نقدي (شراء مباشر)</span>
+                    }
+                </h5>
+                @if (isMaritime && !string.IsNullOrWhiteSpace(Model.ExternalOrderNumber))
+                {
+                    <div class="small text-dark mt-1">
+                        <strong>رقم أمر التوريد المرجعي:</strong> <span class="badge bg-light text-dark border font-monospace">@Model.ExternalOrderNumber</span>
+                        @if (Model.SupplyOrderDate.HasValue)
+                        {
+                            <span class="ms-2"><strong>بتاريخ:</strong> @Model.SupplyOrderDate.Value.ToString("yyyy-MM-dd")</span>
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Model.Notes))
+                {
+                    <div class="small text-muted mt-1">
+                        <i class="bi bi-chat-left-text me-1"></i> ملاحظات: @Model.Notes
+                    </div>
+                }
             </div>
-        }
-        else
-        {
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle text-center mb-0">
-                    <thead class="table-light">
+
+            <!-- Payment & Transaction Terms -->
+            <div class="col-md-5">
+                <span class="text-muted small fw-bold d-block mb-1">شروط وطريقة التعامل:</span>
+                <div class="fw-bold text-dark mb-1">
+                    @switch (Model.Type)
+                    {
+                        case InvoiceType.StoreCashSales:
+                            <span>سداد نقدي فوري بالخزينة</span>
+                            break;
+                        case InvoiceType.WholesaleSales:
+                            <span>حساب آجل (ذمم مدينة)</span>
+                            break;
+                        case InvoiceType.VendorPurchase:
+                            <span>حساب مورد آجل (ذمم دائنة)</span>
+                            break;
+                        case InvoiceType.MaritimeSupply:
+                            <span>حساب شركة توريد بحري آجل (توريدات أسماك مجمدة)</span>
+                            break;
+                    }
+                </div>
+                <div class="small text-muted">
+                    حالة المستند: <strong>@(isPosted ? "مرحّلة ومعتمدة بالدفاتر" : "مسودة عمل قيد التدقيق")</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Item Section (Only in Draft Mode - Screen Only) -->
+    @if (isDraft)
+    {
+        <div class="card shadow-sm mb-4 border-primary d-print-none">
+            <div class="card-header bg-primary text-white py-2">
+                <h6 class="card-title mb-0">
+                    <i class="bi bi-plus-circle me-1"></i> إضافة صنف جديد للمسودة
+                </h6>
+            </div>
+            <div class="card-body">
+                <form asp-action="AddItem" method="post" class="row g-2 align-items-end">
+                    <input type="hidden" name="InvoiceId" value="@Model.Id" />
+
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">@(isMaritime ? "صنف السمك المجمد" : "الصنف / المنتج") <span class="text-danger">*</span></label>
+                        <select name="ProductId" class="form-select form-select-sm" asp-items="ViewBag.Products" required>
+                            <option value="">-- اختر الصنف من المخزن --</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">@(isMaritime ? "الوزن المطلوب (كجم)" : "الكمية") <span class="text-danger">*</span></label>
+                        <input type="number" step="0.001" min="0.001" name="Quantity" class="form-control form-control-sm font-tabular" value="1" required />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">@(isMaritime ? "سعر الكجم (ج.م)" : "سعر الوحدة (ج.م)") <small class="text-muted fw-normal">(افتراضي من الدليل)</small></label>
+                        <input type="number" step="0.01" min="0" name="UnitPrice" class="form-control form-control-sm font-tabular" placeholder="سعر الصنف الافتراضي" />
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">خصم البند (ج.م)</label>
+                        <input type="number" step="0.01" min="0" name="LineDiscountAmount" class="form-control form-control-sm font-tabular" value="0.00" />
+                    </div>
+
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+
+    <!-- Line Items Table (A4 Standard) -->
+    <div class="invoice-table-wrapper mb-4">
+        <table class="table-invoice">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">#</th>
+                    <th class="text-start">اسم الصنف / المنتج</th>
+                    <th style="width: 90px;">@(isMaritime ? "الوزن (كجم)" : "الكمية")</th>
+                    @if (isPosted)
+                    {
+                        <th style="width: 75px;">المرتجع</th>
+                        <th style="width: 75px;">الصافي</th>
+                    }
+                    <th style="width: 95px;">@(isMaritime ? "سعر الكجم" : "سعر الوحدة")</th>
+                    <th style="width: 85px;">الخصم</th>
+                    <th style="width: 110px;">الإجمالي</th>
+                    @if (isDraft)
+                    {
+                        <th class="d-print-none" style="width: 60px;">حذف</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="@(isDraft ? "7" : (isPosted ? "8" : "6"))" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
+                            لا توجد أصناف في الفاتورة بعد.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    int itemIdx = 1;
+                    foreach (var item in Model.Items)
+                    {
+                        returnedQuantities.TryGetValue(item.ProductId, out var retQty);
+                        var netQty = item.Quantity - retQty;
                         <tr>
-                            <th style="width: 50px;">#</th>
-                            <th class="text-start">اسم الصنف / المنتج</th>
-                            <th>الكمية</th>
-                            <th>سعر الوحدة</th>
-                            <th>خصم البند</th>
-                            <th>إجمالي البند</th>
+                            <td class="text-center text-muted fw-bold">@(itemIdx++)</td>
+                            <td class="text-start fw-bold text-dark">
+                                <span>@(!string.IsNullOrWhiteSpace(item.ProductName) ? item.ProductName : "صنف سمك مجمد")</span>
+                                @if (isMaritime)
+                                {
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle ms-1 font-monospace" style="font-size:0.75rem;">مجمد</span>
+                                }
+                            </td>
+                            <td class="text-center font-tabular fw-bold">
+                                @item.Quantity.ToString("G29")@(isMaritime ? " كجم" : "")
+                            </td>
+                            @if (isPosted)
+                            {
+                                <td class="text-center font-tabular text-danger">
+                                    @(retQty > 0 ? retQty.ToString("G29") : "-")
+                                </td>
+                                <td class="text-center font-tabular fw-bold @(retQty > 0 ? "text-primary" : "")">
+                                    @netQty.ToString("G29")
+                                </td>
+                            }
+                            <td class="text-center font-tabular">@item.UnitPrice.ToString("N2")</td>
+                            <td class="text-center font-tabular text-danger">
+                                @(item.LineDiscountAmount > 0 ? "-" + item.LineDiscountAmount.ToString("N2") : "-")
+                            </td>
+                            <td class="text-center font-tabular fw-bold text-dark">@item.LineTotal.ToString("N2")</td>
                             @if (isDraft)
                             {
-                                <th class="no-print" style="width: 80px;">إجراء</th>
+                                <td class="text-center d-print-none">
+                                    <form asp-action="RemoveItem" method="post" class="d-inline">
+                                        <input type="hidden" name="itemId" value="@item.Id" />
+                                        <input type="hidden" name="invoiceId" value="@Model.Id" />
+                                        <button type="button" class="btn btn-sm btn-outline-danger p-1" title="حذف"
+                                                data-confirm="هل تريد حذف هذا البند من المسودة؟">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
                             }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Credit Notes Linked Sub-Table (If Returns Exist) -->
+    @if (isPosted && creditNotes.Any())
+    {
+        <div class="mb-4 p-3 bg-light rounded-3 border border-warning">
+            <h6 class="fw-bold text-dark mb-2">
+                <i class="bi bi-arrow-return-left text-danger me-1"></i> إشعارات الخصم والمرتجعات الصادرة على الفاتورة:
+            </h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered bg-white text-center mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>رقم الإشعار</th>
+                            <th>تاريخ المرتجع</th>
+                            <th class="text-start">الأصناف المرتجعة</th>
+                            <th>المبلغ المخصوم</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @{ int itemIndex = 1; }
-                        @foreach (var item in Model.Items)
+                        @foreach (var note in creditNotes)
                         {
                             <tr>
-                                <td>@(itemIndex++)</td>
-                                <td class="text-start fw-bold">@item.ProductName</td>
-                                <td>@item.Quantity.ToString("G29")</td>
-                                <td>@item.UnitPrice.ToString("N2")</td>
-                                <td>
-                                    @if (item.LineDiscountAmount > 0)
+                                <td class="fw-bold font-monospace">@note.CreditNoteNumber</td>
+                                <td class="font-tabular">@note.TransactionDate.ToString("yyyy-MM-dd")</td>
+                                <td class="text-start small">
+                                    @foreach (var nItem in note.Items)
                                     {
-                                        <span class="text-danger">-@item.LineDiscountAmount.ToString("N2")</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">0.00</span>
+                                        <span class="d-inline-block me-2">• @nItem.ProductName (@nItem.Quantity × @nItem.UnitPrice.ToString("N2"))</span>
                                     }
                                 </td>
-                                <td class="fw-bold">@item.LineTotal.ToString("N2") ج.م</td>
-                                @if (isDraft)
-                                {
-                                    <td class="no-print">
-                                        <form asp-action="RemoveItem" method="post" class="d-inline"
-                                              onsubmit="return confirm('هل تريد حذف هذا البند من المسودة؟');">
-                                            <input type="hidden" name="itemId" value="@item.Id" />
-                                            <input type="hidden" name="invoiceId" value="@Model.Id" />
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="حذف البند">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    </td>
-                                }
+                                <td class="fw-bold text-danger font-tabular">-@note.TotalAmount.ToString("N2") ج.م</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-        }
-    </div>
-</div>
+        </div>
+    }
 
-<!-- Financial Summary Section -->
-<div class="row justify-content-end">
-    <div class="col-lg-5 col-md-7">
-        <div class="card shadow-sm border-0 bg-light">
-            <div class="card-body p-4">
-                <h5 class="fw-bold mb-3 border-bottom pb-2">الملخص المالي للفاتورة</h5>
-
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">المجموع قبل الخصم (SubTotal):</span>
-                    <span class="fw-bold">@Model.SubTotal.ToString("N2") ج.م</span>
+    <!-- Financial Totals & Tafqeet Box -->
+    <div class="invoice-summary-box mb-4">
+        <div class="row g-4 align-items-center">
+            <!-- Arabic Tafqeet Box (RTL Right) -->
+            <div class="col-md-7">
+                <div class="p-3 bg-light rounded-3 border">
+                    <span class="text-muted small fw-bold d-block mb-1">المبلغ الإجمالي كتابةً (فقط وقدره):</span>
+                    <div class="fw-bold text-dark fs-6">
+                        @ToArabicWords(Model.TotalAmount)
+                    </div>
+                    @if (isPosted && Model.RemainingBalance > 0)
+                    {
+                        <div class="text-danger small mt-2 pt-2 border-top">
+                            <i class="bi bi-exclamation-circle me-1"></i>
+                            <strong>المبلغ المتبقي غير المسدد:</strong> @ToArabicWords(Model.RemainingBalance)
+                        </div>
+                    }
                 </div>
+            </div>
 
-                @if (Model.ItemDiscountTotal > 0)
-                {
-                    <div class="d-flex justify-content-between mb-2 text-danger">
-                        <span>إجمالي خصومات البنود:</span>
-                        <span>-@Model.ItemDiscountTotal.ToString("N2") ج.م</span>
+            <!-- Totals Numbers (RTL Left) -->
+            <div class="col-md-5">
+                <div class="totals-box">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">المجموع قبل الخصم:</span>
+                        <span class="fw-bold font-tabular">@Model.SubTotal.ToString("N2") ج.م</span>
                     </div>
-                }
 
-                @if (Model.InvoiceDiscountAmount > 0)
-                {
-                    <div class="d-flex justify-content-between mb-2 text-danger">
-                        <span>خصم إضافي على الفاتورة:</span>
-                        <span>-@Model.InvoiceDiscountAmount.ToString("N2") ج.م</span>
+                    @if (Model.ItemDiscountTotal > 0 || Model.InvoiceDiscountAmount > 0)
+                    {
+                        <div class="d-flex justify-content-between mb-2 text-danger">
+                            <span>إجمالي الخصومات:</span>
+                            <span class="font-tabular">-@((Model.ItemDiscountTotal + Model.InvoiceDiscountAmount).ToString("N2")) ج.م</span>
+                        </div>
+                    }
+
+                    @if (totalReturnedAmount > 0)
+                    {
+                        <div class="d-flex justify-content-between mb-2 text-danger">
+                            <span>إجمالي المرتجعات:</span>
+                            <span class="font-tabular">-@totalReturnedAmount.ToString("N2") ج.م</span>
+                        </div>
+                    }
+
+                    <div class="d-flex justify-content-between py-2 border-top border-bottom border-2 my-2 fs-5 fw-bold text-dark">
+                        <span>صافي الفاتورة الإجمالي:</span>
+                        <span class="text-primary font-tabular">@Model.TotalAmount.ToString("N2") ج.م</span>
                     </div>
-                }
 
-                <div class="d-flex justify-content-between my-3 pt-2 border-top border-dark border-2 fs-5 fw-bold">
-                    <span>صافي الفاتورة الإجمالي:</span>
-                    <span class="text-primary">@Model.TotalAmount.ToString("N2") ج.م</span>
+                    @if (isPosted)
+                    {
+                        <div class="d-flex justify-content-between mb-2 text-success">
+                            <span>المدفوع حتى الآن:</span>
+                            <span class="fw-bold font-tabular">@Model.PaidAmount.ToString("N2") ج.م</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between pt-2 @(Model.RemainingBalance > 0 ? "unpaid-highlight-box text-danger" : "paid-highlight-box text-success")">
+                            <span class="fw-bold">المتبقي غير المسدد:</span>
+                            <span class="fw-bold fs-5 font-tabular">@Model.RemainingBalance.ToString("N2") ج.م</span>
+                        </div>
+                    }
                 </div>
-
-                @if (isPosted)
-                {
-                    <div class="d-flex justify-content-between mb-2 text-success">
-                        <span>المدفوع حتى الآن:</span>
-                        <span class="fw-bold">@Model.PaidAmount.ToString("N2") ج.م</span>
-                    </div>
-
-                    <div class="d-flex justify-content-between pt-2 border-top fs-5 fw-bold @(Model.RemainingBalance > 0 ? "text-danger" : "text-success")">
-                        <span>المتبقي غير المسدد:</span>
-                        <span>@Model.RemainingBalance.ToString("N2") ج.م</span>
-                    </div>
-                }
             </div>
         </div>
     </div>
+
+    <!-- Footer Terms & Dual Signature Blocks -->
+    <div class="invoice-signature-block pt-4 border-top">
+        <div class="row text-center mb-3">
+            <div class="col-6">
+                <div class="text-muted small mb-4">توقيع المستلم / العميل</div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-5">
+                    ............................................................
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="text-muted small mb-4">توقيع أمين الخزينة / الحسابات</div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-5">
+                    ............................................................
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center text-muted small mt-4 pt-2 border-top">
+            <p class="mb-0">
+                • البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب أصل الفاتورة بحالتها الأصلية.
+                • شكراً لتعاملكم معنا!
+            </p>
+        </div>
+    </div>
 </div>
+
+<!-- ==========================================================================
+     2. THE 80MM POS THERMAL RECEIPT ENGINE (Printed only when requested)
+     ========================================================================== -->
+<div class="thermal-receipt-container">
+    <div class="text-center mb-2">
+        <h5 class="fw-bold mb-0">مؤسسة التجارة والتوريدات</h5>
+        <div style="font-size: 10px;">نظام إدارة المبيعات والتوريدات</div>
+        <div style="font-size: 9.5px;">س.ت: 104928 | ب.ض: 482-901-332</div>
+        <div style="font-size: 9.5px;">هاتف: 01000000000</div>
+    </div>
+
+    <div class="thermal-divider"></div>
+
+    <div class="text-center my-1">
+        <strong style="font-size: 12px;">
+            @(isDraft ? "مسودة إيصال كاشير (غير مرحلة)" : (isMaritime ? "إيصال أمر توريد بحري" : "إيصال مبيعات نقدية"))
+        </strong>
+    </div>
+
+    <div class="thermal-divider"></div>
+
+    <div style="font-size: 10px; margin-bottom: 4px;">
+        <div class="d-flex justify-content-between">
+            <span>رقم الإيصال:</span>
+            <strong class="font-monospace">@(isDraft ? "#DRAFT-" + Model.Id : Model.InvoiceNumber)</strong>
+        </div>
+        <div class="d-flex justify-content-between">
+            <span>التاريخ:</span>
+            <span>@Model.TransactionDate.ToString("yyyy-MM-dd") @DateTime.Now.ToString("hh:mm tt")</span>
+        </div>
+        @if (isMaritime && !string.IsNullOrWhiteSpace(Model.ExternalOrderNumber))
+        {
+            <div class="d-flex justify-content-between">
+                <span>أمر التوريد:</span>
+                <strong class="font-monospace">@Model.ExternalOrderNumber</strong>
+            </div>
+        }
+        <div class="d-flex justify-content-between">
+            <span>العميل / الطرف:</span>
+            <strong>@(Model.CustomerName ?? Model.VendorName ?? "عميل نقدي")</strong>
+        </div>
+        <div class="d-flex justify-content-between">
+            <span>الكاشير:</span>
+            <span>@(User.Identity?.Name ?? "Admin")</span>
+        </div>
+    </div>
+
+    <div class="thermal-divider"></div>
+
+    <!-- Items List -->
+    <table>
+        <thead>
+            <tr>
+                <th class="text-start">الصنف</th>
+                <th class="text-center">الكمية</th>
+                <th class="text-center">السعر</th>
+                <th class="text-end">الإجمالي</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td class="text-start">@(!string.IsNullOrWhiteSpace(item.ProductName) ? item.ProductName : "صنف سمك مجمد")</td>
+                    <td class="text-center font-tabular">@item.Quantity.ToString("G29")@(isMaritime ? "ك" : "")</td>
+                    <td class="text-center font-tabular">@item.UnitPrice.ToString("N1")</td>
+                    <td class="text-end font-tabular fw-bold">@item.LineTotal.ToString("N2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="thermal-divider-double"></div>
+
+    <!-- Totals -->
+    <div style="font-size: 10.5px;">
+        <div class="d-flex justify-content-between mb-1">
+            <span>المجموع:</span>
+            <span class="font-tabular">@Model.SubTotal.ToString("N2") ج.م</span>
+        </div>
+        @if (Model.ItemDiscountTotal > 0 || Model.InvoiceDiscountAmount > 0)
+        {
+            <div class="d-flex justify-content-between mb-1">
+                <span>الخصومات:</span>
+                <span class="font-tabular">-@((Model.ItemDiscountTotal + Model.InvoiceDiscountAmount).ToString("N2")) ج.م</span>
+            </div>
+        }
+        <div class="d-flex justify-content-between my-1 pt-1 border-top border-dark" style="font-size: 12px;">
+            <strong>الصافي المستحق:</strong>
+            <strong class="font-tabular">@Model.TotalAmount.ToString("N2") ج.م</strong>
+        </div>
+        @if (isPosted)
+        {
+            <div class="d-flex justify-content-between mb-1">
+                <span>المدفوع:</span>
+                <span class="font-tabular">@Model.PaidAmount.ToString("N2") ج.م</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+                <strong>المتبقي:</strong>
+                <strong class="font-tabular">@Model.RemainingBalance.ToString("N2") ج.م</strong>
+            </div>
+        }
+    </div>
+
+    <div class="thermal-divider"></div>
+
+    <!-- Footer Notice -->
+    <div class="text-center mt-2" style="font-size: 9.5px;">
+        <p class="mb-1">البضاعة المباعة ترد وتستبدل خلال 14 يوماً مع إحضار أصل الإيصال.</p>
+        <p class="fw-bold mb-0">شكراً لزيارتكم ونسعد بخدمتكم دائماً!</p>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function printThermalReceipt() {
+            document.body.classList.add('thermal-print-mode');
+            window.print();
+        }
+
+        window.addEventListener('afterprint', function () {
+            document.body.classList.remove('thermal-print-mode');
+        });
+    </script>
+}

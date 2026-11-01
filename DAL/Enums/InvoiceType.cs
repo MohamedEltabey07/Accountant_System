@@ -4,6 +4,7 @@ namespace DAL.Enums
     {
         VendorPurchase = 1,
         WholesaleSales = 2,
-        StoreCashSales = 3
+        StoreCashSales = 3,
+        MaritimeSupply = 4
     }
 }

@@ -66,6 +66,7 @@ namespace DAL.Repos
                 InvoiceType.VendorPurchase => "PUR-",
                 InvoiceType.WholesaleSales => "SAL-",
                 InvoiceType.StoreCashSales => "RET-",
+                InvoiceType.MaritimeSupply => "MAR-",
                 _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown invoice type.")
             };
 
@@ -90,7 +91,7 @@ namespace DAL.Repos
             return await _context.Invoices
                 .Where(i =>
                     i.CustomerId == customerId &&
-                    i.Type == InvoiceType.WholesaleSales &&
+                    (i.Type == InvoiceType.WholesaleSales || i.Type == InvoiceType.MaritimeSupply) &&
                     i.Status == InvoiceStatus.Posted &&
                     i.TotalAmount
                         - (i.PaymentAllocations.Sum(pa => (decimal?)pa.Amount) ?? 0m)
@@ -115,6 +116,26 @@ namespace DAL.Repos
                             .Sum(cn => (decimal?)cn.TotalAmount) ?? 0m) > 0)
                 .OrderByDescending(i => i.TransactionDate)
                 .ToListAsync();
+        }
+
+        public async Task<List<Invoice>> GetCustomerOpenInvoices(int customerId)
+        {
+            var openInvoices = await _context.Invoices.Where(i => i.CustomerId == customerId
+            && (i.Type == InvoiceType.WholesaleSales || i.Type == InvoiceType.MaritimeSupply)
+            && i.Status == InvoiceStatus.Posted).AsNoTracking().ToListAsync();
+            return openInvoices;
+        }
+        public async Task<List<Invoice>> GetVendorOpenInvoices(int vendorId)
+        {
+            var openInvoices = await _context.Invoices.Where(i => i.VendorId == vendorId
+            && i.Type == InvoiceType.VendorPurchase && i.Status == InvoiceStatus.Posted).AsNoTracking().ToListAsync();
+            return openInvoices;
+        }
+
+        public async Task<List<Invoice>> GetAllPostedInvoices()
+        {
+            var openInvoices = await _context.Invoices.Where(s => s.Status == InvoiceStatus.Posted).ToListAsync();
+            return openInvoices;
         }
     }
 }

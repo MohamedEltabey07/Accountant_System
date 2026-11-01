@@ -23,6 +23,22 @@ namespace DAL.Repos
             return listOfActiveCustomers;
         }
 
+        public async Task<List<Customer>> GetActiveByTypeAsync(CustomerType type)
+        {
+            return await _context.Customers
+                .Where(c => c.IsActive && c.Type == type)
+                .OrderBy(c => c.Name)
+                .ToListAsync();
+        }
+
+        public async Task<List<Customer>> GetByTypeAsync(CustomerType type)
+        {
+            return await _context.Customers
+                .Where(c => c.Type == type)
+                .OrderBy(c => c.Name)
+                .ToListAsync();
+        }
+
         public async Task<decimal> GetCustomerBalanceAsync(int customerId)
         {
             // 1. Make sure the customer exists.
@@ -42,21 +58,23 @@ namespace DAL.Repos
                     x.VendorId == null)
                 .SumAsync(x => (decimal?)x.Amount) ?? 0m;
 
-            // 3. Get posted wholesale sales only.
+            // 3. Get posted customer sales. Regular wholesale customers are billed by
+            //    WholesaleSales invoices; maritime companies by MaritimeSupply invoices.
+            //    The two never mix (type validation guards invoice creation), so summing
+            //    both types per customer remains a correct ledger read.
             var sales = await _context.Invoices
                 .Where(i =>
                     i.CustomerId == customerId &&
-                    i.Type == InvoiceType.WholesaleSales &&
+                    (i.Type == InvoiceType.WholesaleSales || i.Type == InvoiceType.MaritimeSupply) &&
                     i.Status == InvoiceStatus.Posted)
                 .SumAsync(i => (decimal?)i.TotalAmount) ?? 0m;
 
-     
             var creditNotes = await _context.CreditNotes
                 .Where(cn =>
                     cn.Type == CreditNoteType.CustomerReturn &&
                     cn.Status == CreditNoteStatus.Posted &&
                     cn.OriginalInvoice.CustomerId == customerId &&
-                    cn.OriginalInvoice.Type == InvoiceType.WholesaleSales &&
+                    (cn.OriginalInvoice.Type == InvoiceType.WholesaleSales || cn.OriginalInvoice.Type == InvoiceType.MaritimeSupply) &&
                     cn.OriginalInvoice.Status == InvoiceStatus.Posted)
                 .SumAsync(cn => (decimal?)cn.TotalAmount) ?? 0m;
 

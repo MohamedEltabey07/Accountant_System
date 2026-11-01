@@ -1,5 +1,6 @@
 ﻿using BLL.DTOs.Product.InComingData;
 using BLL.DTOs.Product.OutGoingData;
+using DAL.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -10,6 +11,7 @@ namespace BLL.IService
     {
         public Task<List<ProductDto>> GetAllProductsAsync();
         public Task<List<ProductDto>> GetActiveProductsAsync();
+        public Task<List<ProductDto>> GetProductsByCategoryAsync(ProductCategory category, bool activeOnly = true);
         public Task<ProductDto?> GetProductByIdAsync(int id);
         public Task<bool> UpdateProductAsync(UpdateProductDto dto);
         public Task<bool> ToggleStatusAsync(int id);

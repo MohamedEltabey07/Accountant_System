@@ -1,0 +1,165 @@
+@model List<BLL.DTOs.Inventory.OutGoingData.StockMovementDto>
+@using DAL.Enums
+@{
+    ViewData["Title"] = "حركة المخزون";
+    var selectedProductId = ViewBag.SelectedProductId as int?;
+    var selectedType = ViewBag.SelectedType as StockMovementType?;
+    var fromDate = ViewBag.FromDate as DateTime?;
+    var toDate = ViewBag.ToDate as DateTime?;
+    var products = ViewBag.Products as SelectList;
+
+    string TypeBadge(StockMovementType type) => type switch
+    {
+        StockMovementType.In => "<span class=\"badge bg-success-subtle text-success border border-success-subtle\"><i class=\"bi bi-box-arrow-in-down me-1\"></i>دخول (وارد)</span>",
+        StockMovementType.Out => "<span class=\"badge bg-danger-subtle text-danger border border-danger-subtle\"><i class=\"bi bi-box-arrow-up me-1\"></i>خروج (صادر)</span>",
+        _ => "<span class=\"badge bg-warning-subtle text-warning-emphasis border border-warning-subtle\"><i class=\"bi bi-sliders me-1\"></i>تسوية جرد</span>"
+    };
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h3 class="fw-bold mb-1">
+            <i class="bi bi-clock-history text-primary me-2"></i> سجل حركات مخزون الثلاجات
+        </h3>
+        <p class="text-muted mb-0">سجل تاريخي كامل لكل حركة وارد أو صادر أو تسوية جرد في أصناف الأسماك المجمدة</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-success shadow-sm" onclick="exportTableToCSV('movementsTable', 'حركات_مخزون_الثلاجات')">
+            <i class="bi bi-file-earmark-excel me-1"></i> تصدير Excel
+        </button>
+        <a asp-action="StockIn" class="btn btn-success shadow-sm fw-bold">
+            <i class="bi bi-box-arrow-in-down me-1"></i> استلام
+        </a>
+        <a asp-action="StockOut" class="btn btn-outline-danger shadow-sm fw-bold">
+            <i class="bi bi-box-arrow-up me-1"></i> إخراج
+        </a>
+        <a asp-action="Adjustment" class="btn btn-outline-warning shadow-sm fw-bold">
+            <i class="bi bi-sliders me-1"></i> تسوية
+        </a>
+        <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-speedometer2 me-1"></i> لوحة المخزون
+        </a>
+    </div>
+</div>
+
+<!-- Server-side Filter Bar -->
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body p-3">
+        <form method="get" asp-action="Movements" id="movementsFilterForm" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted"><i class="bi bi-fish me-1"></i> الصنف</label>
+                <select name="productId" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- كل الأصناف --</option>
+                    @if (products != null)
+                    {
+                        foreach (var item in products)
+                        {
+                            <option value="@item.Value" selected="@(selectedProductId.HasValue && selectedProductId.Value.ToString() == item.Value ? "selected" : null)">@item.Text</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted"><i class="bi bi-tags me-1"></i> نوع الحركة</label>
+                <select name="movementType" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- كل الأنواع --</option>
+                    <option value="@((int)StockMovementType.In)" selected="@(selectedType == StockMovementType.In ? "selected" : null)">دخول للثلاجات (وارد)</option>
+                    <option value="@((int)StockMovementType.Out)" selected="@(selectedType == StockMovementType.Out ? "selected" : null)">خروج من الثلاجات (صادر)</option>
+                    <option value="@((int)StockMovementType.Adjustment)" selected="@(selectedType == StockMovementType.Adjustment ? "selected" : null)">تسوية جرد فعلي</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted"><i class="bi bi-calendar me-1"></i> من تاريخ</label>
+                <input type="date" name="from" value="@(fromDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted"><i class="bi bi-calendar-check me-1"></i> إلى تاريخ</label>
+                <input type="date" name="to" value="@(toDate?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1 shadow-sm">
+                    <i class="bi bi-funnel-fill me-1"></i> تطبيق
+                </button>
+                <a asp-action="Movements" class="btn btn-outline-secondary" title="إلغاء التصفية وعرض كل الحركات">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Instant Client Search & Row Counter -->
+<div class="card shadow-sm border-0">
+    <div class="card-body p-3 border-bottom">
+        <div class="row align-items-center g-2">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" placeholder="بحث فوري بالصنف أو رقم الفاتورة أو السبب..." data-table-search="movementsTable" data-counter-target="movementsCounter" />
+                </div>
+            </div>
+            <div class="col-md-7 text-md-start">
+                <span class="badge bg-light text-dark border p-2 font-tabular" id="movementsCounter">
+                    عرض @Model.Count من إجمالي @Model.Count حركة
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.Count == 0)
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-journal-x fs-1 d-block mb-2 text-secondary"></i>
+                <h5 class="fw-bold text-dark">لا توجد حركات مخزون مطابقة للفلاتر المحددة</h5>
+                <p class="text-muted small">قم بتعديل نطاق التاريخ أو الصنف لإظهار حركات أخرى.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center mb-0" id="movementsTable">
+                    <thead class="bg-light">
+                        <tr>
+                            <th>#</th>
+                            <th>التاريخ</th>
+                            <th>النوع</th>
+                            <th class="text-start">الصنف</th>
+                            <th>الكراتين</th>
+                            <th>وزن/كرتونة</th>
+                            <th>الوزن (كجم)</th>
+                            <th class="text-start">المرجع / السبب</th>
+                            <th>المستخدم</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int rowIdx = 1; }
+                        @foreach (var move in Model)
+                        {
+                            <tr>
+                                <td class="text-muted">@(rowIdx++)</td>
+                                <td class="font-tabular">@move.MovementDate.ToString("yyyy-MM-dd")</td>
+                                <td>@Html.Raw(TypeBadge(move.MovementType))</td>
+                                <td class="text-start fw-bold text-dark">@move.ProductName</td>
+                                <td class="font-tabular @((move.MovementType == StockMovementType.Out) ? "text-danger" : "text-success")">
+                                    @(move.MovementType == StockMovementType.Out ? "-" : (move.MovementType == StockMovementType.Adjustment ? "" : "+"))@move.Cartons.ToString("N2")
+                                </td>
+                                <td class="font-tabular text-muted">@(move.WeightPerCartonKg?.ToString("N3") ?? "-")</td>
+                                <td class="font-tabular fw-bold @((move.MovementType == StockMovementType.Out) ? "text-danger" : "text-success")">
+                                    @(move.MovementType == StockMovementType.Out ? "-" : (move.MovementType == StockMovementType.Adjustment ? "" : "+"))@move.TotalWeightKg.ToString("N3")
+                                </td>
+                                <td class="text-start small text-muted">
+                                    @if (!string.IsNullOrWhiteSpace(move.SourceInvoiceNumber))
+                                    {
+                                        <span class="badge bg-light text-dark border me-1">@move.SourceInvoiceNumber</span>
+                                    }
+                                    @(move.Reason ?? "-")
+                                </td>
+                                <td class="small text-muted">@(move.CreatedBy ?? "-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

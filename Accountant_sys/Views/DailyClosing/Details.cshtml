@@ -1,0 +1,311 @@
+@model BLL.DTOs.DailyClosing.OutGoingData.DailyClosingDto
+@{
+    ViewData["Title"] = $"تقرير إقفال يومية {Model.BusinessDate:yyyy-MM-dd}";
+}
+
+@functions {
+    // Professional Arabic Tafqeet (Number to Words)
+    private static readonly string[] Ones = { "", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة", "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر" };
+    private static readonly string[] Tens = { "", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون" };
+    private static readonly string[] Hundreds = { "", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة" };
+
+    public static string ToArabicWords(decimal amount)
+    {
+        if (amount == 0) return "صفر جنيه مصري لا غير";
+        long integerPart = (long)Math.Floor(amount);
+        int decimalPart = (int)Math.Round((amount - integerPart) * 100);
+
+        string words = ConvertGroup(integerPart);
+        string result = "فقط " + words + " جنيهاً مصرياً";
+        if (decimalPart > 0)
+        {
+            result += " و " + ConvertGroup(decimalPart) + " قرشاً";
+        }
+        result += " لا غير";
+        return result;
+    }
+
+    private static string ConvertGroup(long number)
+    {
+        if (number == 0) return "";
+        if (number < 20) return Ones[number];
+        if (number < 100)
+        {
+            long unit = number % 10;
+            long ten = number / 10;
+            return (unit > 0 ? Ones[unit] + " و " : "") + Tens[ten];
+        }
+        if (number < 1000)
+        {
+            long rem = number % 100;
+            long hundred = number / 100;
+            return Hundreds[hundred] + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        if (number < 1000000)
+        {
+            long rem = number % 1000;
+            long thousands = number / 1000;
+            string thText = thousands == 1 ? "ألف" : (thousands == 2 ? "ألفان" : (thousands <= 10 ? ConvertGroup(thousands) + " آلاف" : ConvertGroup(thousands) + " ألفاً"));
+            return thText + (rem > 0 ? " و " + ConvertGroup(rem) : "");
+        }
+        long millRem = number % 1000000;
+        long millions = number / 1000000;
+        string millText = millions == 1 ? "مليون" : (millions == 2 ? "مليونان" : (millions <= 10 ? ConvertGroup(millions) + " ملايين" : ConvertGroup(millions) + " مليوناً"));
+        return millText + (millRem > 0 ? " و " + ConvertGroup(millRem) : "");
+    }
+}
+
+<style>
+    /* ==========================================================================
+       A4 Printable Daily Closing Sheet Stylesheet
+       ========================================================================== */
+    @@page {
+        size: A4 portrait;
+        margin: 10mm 12mm 12mm 12mm;
+    }
+
+    .closing-sheet {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e2e8f0;
+        padding: 2.5rem;
+    }
+
+    @@media print {
+        html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 12px !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .d-print-none,
+        .sidebar,
+        .top-navbar,
+        .btn {
+            display: none !important;
+        }
+
+        .main-content,
+        .content-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+        }
+
+        .closing-sheet {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .closing-header,
+        .closing-meta-grid,
+        .closing-table,
+        .closing-signatures {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    }
+</style>
+
+<!-- Top Toolbar (Hidden on Print) -->
+<div class="d-flex justify-content-between align-items-center mb-4 d-print-none">
+    <div class="d-flex align-items-center gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-right me-1"></i> سجل الإقفالات
+        </a>
+        <h4 class="mb-0 fw-bold text-dark">
+            <i class="bi bi-calendar-check text-primary me-1"></i>
+            إقفال يومية @Model.BusinessDate.ToString("yyyy-MM-dd")
+        </h4>
+        <span class="badge @(Model.IsClosed ? "bg-success" : "bg-warning text-dark") fs-6">
+            @(Model.IsClosed ? "يومية مقفلة ومعتمدة" : "يومية مفتوحة")
+        </span>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary shadow-sm fw-bold" onclick="window.print()">
+            <i class="bi bi-printer-fill me-1"></i> طباعة تقرير الإقفال (A4)
+        </button>
+    </div>
+</div>
+
+<!-- ==========================================================================
+     OFFICIAL A4 DAILY CLOSING REPORT SHEET
+     ========================================================================== -->
+<div class="closing-sheet">
+
+    <!-- Commercial Header -->
+    <div class="closing-header border-bottom pb-4 mb-4">
+        <div class="row align-items-center g-3">
+            <div class="col-7">
+                <h3 class="fw-bold text-dark mb-1">
+                    <i class="bi bi-calculator-fill text-primary me-1"></i> مؤسسة التجارة والتوريدات
+                </h3>
+                <div class="text-muted small">نظام إدارة الحسابات، الخزينة العامة، وتقفيل الورديات</div>
+                <div class="text-muted small mt-1">
+                    <span><strong>س.ت:</strong> 104928</span> | 
+                    <span><strong>ب.ض:</strong> 482-901-332</span>
+                </div>
+            </div>
+
+            <div class="col-5 text-start">
+                <div class="p-2 rounded bg-light border text-center d-inline-block px-3">
+                    <div class="small text-muted">تقرير رسمي</div>
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-calendar-check text-primary me-1"></i> جرد وإقفال الخزينة
+                    </h5>
+                    <div class="font-monospace fw-bold fs-6 mt-1 text-primary">
+                        #CLS-@Model.Id.ToString("D5")
+                    </div>
+                </div>
+                <div class="small text-muted mt-2 text-start">
+                    <span>تاريخ العمل: <strong>@Model.BusinessDate.ToString("yyyy-MM-dd")</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Meta Details Grid -->
+    <div class="closing-meta-grid row g-3 p-3 bg-light rounded-3 mb-4 border">
+        <div class="col-3">
+            <small class="text-muted d-block">يوم العمل</small>
+            <span class="fw-bold text-dark fs-6 font-tabular">@Model.BusinessDate.ToString("yyyy-MM-dd")</span>
+            <small class="d-block text-muted">@Model.BusinessDate.ToString("dddd", new System.Globalization.CultureInfo("ar-EG"))</small>
+        </div>
+        <div class="col-3">
+            <small class="text-muted d-block">وقت الإقفال الفعلي</small>
+            <span class="fw-bold text-dark font-tabular">
+                @(Model.ClosedAt.HasValue ? Model.ClosedAt.Value.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt") : "قيد التشغيل")
+            </span>
+        </div>
+        <div class="col-3">
+            <small class="text-muted d-block">نتيجة مطابقة الجرد</small>
+            @if (!Model.DifferenceAmount.HasValue || Model.DifferenceAmount.Value == 0)
+            {
+                <span class="fw-bold text-success"><i class="bi bi-check-circle-fill me-1"></i> مطابق تماماً</span>
+            }
+            else if (Model.DifferenceAmount.Value < 0)
+            {
+                <span class="fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> عجز بالخزينة</span>
+            }
+            else
+            {
+                <span class="fw-bold text-info"><i class="bi bi-info-circle-fill me-1"></i> زيادة بالخزينة</span>
+            }
+        </div>
+        <div class="col-3">
+            <small class="text-muted d-block">حالة الوردية</small>
+            <span class="fw-bold @(Model.IsClosed ? "text-success" : "text-warning")">
+                @(Model.IsClosed ? "مقفلة ومعتمدة" : "مفتوحة")
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Accounting Breakdown Table -->
+    <div class="closing-table mb-4">
+        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-stack text-primary me-2"></i> البيان المالي والحركي للخزينة</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle text-center mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="text-start">البند المحاسبي</th>
+                        <th>طبيعة الحركة</th>
+                        <th class="text-end">المبلغ (ج.م)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-start fw-bold">الرصيد الافتتاحي (عهدة بداية اليومية)</td>
+                        <td><span class="badge bg-secondary-subtle text-secondary border">رصيد سابق</span></td>
+                        <td class="text-end fw-bold font-tabular">@Model.OpeningCashAmount.ToString("N2")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-start fw-bold">إجمالي المقبوضات النقدية (Cash In)</td>
+                        <td><span class="badge bg-success-subtle text-success border border-success-subtle">وارد (+)</span></td>
+                        <td class="text-end fw-bold text-success font-tabular">+@Model.TotalCashIn.ToString("N2")</td>
+                    </tr>
+                    <tr>
+                        <td class="text-start fw-bold">إجمالي المدفوعات والمصروفات (Cash Out)</td>
+                        <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">منصرف (-)</span></td>
+                        <td class="text-end fw-bold text-danger font-tabular">-@Model.TotalCashOut.ToString("N2")</td>
+                    </tr>
+                    <tr class="table-light">
+                        <td class="text-start fw-bold fs-6">الرصيد الدفتري المتوقع (Expected Closing)</td>
+                        <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle">المعادلة الدفترية</span></td>
+                        <td class="text-end fw-bold fs-6 text-dark font-tabular">@Model.ExpectedClosingCashAmount.ToString("N2")</td>
+                    </tr>
+                    <tr class="table-warning">
+                        <td class="text-start fw-bold fs-6">الرصيد الفعلي المعدود بالجرد (Counted Cash)</td>
+                        <td><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">الجرد الفعلي</span></td>
+                        <td class="text-end fw-bold fs-6 text-primary font-tabular">
+                            @(Model.CountedClosingCashAmount.HasValue ? Model.CountedClosingCashAmount.Value.ToString("N2") : "-")
+                        </td>
+                    </tr>
+                    <tr class="@(Model.DifferenceAmount.HasValue && Model.DifferenceAmount.Value < 0 ? "table-danger" : (Model.DifferenceAmount.HasValue && Model.DifferenceAmount.Value > 0 ? "table-info" : "table-success"))">
+                        <td class="text-start fw-bold fs-6">الفارق / نتيجة الجرد (Difference)</td>
+                        <td>
+                            @if (!Model.DifferenceAmount.HasValue || Model.DifferenceAmount.Value == 0)
+                            {
+                                <span class="badge bg-success text-white">مطابق (0.00)</span>
+                            }
+                            else if (Model.DifferenceAmount.Value < 0)
+                            {
+                                <span class="badge bg-danger text-white">عجز (نقص نقدية)</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info text-dark">زيادة (فائض نقدية)</span>
+                            }
+                        </td>
+                        <td class="text-end fw-bold fs-6 font-tabular">
+                            @(Model.DifferenceAmount.HasValue ? (Model.DifferenceAmount.Value > 0 ? "+" : "") + Model.DifferenceAmount.Value.ToString("N2") : "0.00")
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (Model.CountedClosingCashAmount.HasValue)
+    {
+        <!-- Tafqeet Box -->
+        <div class="p-3 bg-light rounded-3 border mb-4">
+            <span class="text-muted small fw-bold d-block mb-1">المبلغ الفعلي المقفول كتابةً:</span>
+            <div class="fw-bold text-dark fs-6">
+                @ToArabicWords(Model.CountedClosingCashAmount.Value)
+            </div>
+        </div>
+    }
+
+    <!-- Notes Section -->
+    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+    {
+        <div class="p-3 bg-light rounded-3 mb-4 border">
+            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-chat-left-text text-muted me-1"></i> ملاحظات الإقفال:</h6>
+            <p class="mb-0 text-muted">@Model.Notes</p>
+        </div>
+    }
+
+    <!-- Dual Signatures -->
+    <div class="closing-signatures row mt-5 pt-4 border-top text-center">
+        <div class="col-6">
+            <p class="text-muted mb-4 small">أمين الخزينة / الكاشير (المسلّم)</p>
+            <p class="border-bottom d-inline-block px-5 pb-1">........................................</p>
+        </div>
+        <div class="col-6">
+            <p class="text-muted mb-4 small">المحاسب المسؤول / الإدارة (المعتمد)</p>
+            <p class="border-bottom d-inline-block px-5 pb-1">........................................</p>
+        </div>
+    </div>
+</div>

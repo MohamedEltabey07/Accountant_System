@@ -52,11 +52,19 @@ namespace Accountant_sys.Controllers
             if (!ModelState.IsValid)
                 return View(dto);
 
-            var result = await _productService.CreateProductAsync(dto);
-            if (result)
+            try
             {
-                TempData["SuccessMessage"] = "تم إضافة المنتج بنجاح.";
-                return RedirectToAction(nameof(Index));
+                var result = await _productService.CreateProductAsync(dto);
+                if (result)
+                {
+                    TempData["SuccessMessage"] = "تم إضافة المنتج بنجاح.";
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(dto);
             }
 
             ModelState.AddModelError(string.Empty, "حدث خطأ أثناء إضافة المنتج. تأكد من البيانات وحاول مرة أخرى.");
@@ -79,7 +87,10 @@ namespace Accountant_sys.Controllers
                 PurchasePrice = product.PurchasePrice,
                 WholesalePrice = product.WholesalePrice,
                 RetailPrice = product.RetailPrice,
-                IsActive = product.IsActive
+                IsActive = product.IsActive,
+                Category = product.Category,
+                DefaultCartonWeightKg = product.DefaultCartonWeightKg,
+                MaritimePricePerKg = product.MaritimePricePerKg
             };
 
             return View(dto);
@@ -92,11 +103,19 @@ namespace Accountant_sys.Controllers
             if (!ModelState.IsValid)
                 return View(dto);
 
-            var result = await _productService.UpdateProductAsync(dto);
-            if (result)
+            try
             {
-                TempData["SuccessMessage"] = "تم تحديث المنتج بنجاح.";
-                return RedirectToAction(nameof(Index));
+                var result = await _productService.UpdateProductAsync(dto);
+                if (result)
+                {
+                    TempData["SuccessMessage"] = "تم تحديث المنتج بنجاح.";
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(dto);
             }
 
             ModelState.AddModelError(string.Empty, "حدث خطأ أثناء تحديث المنتج. تأكد من البيانات وحاول مرة أخرى.");

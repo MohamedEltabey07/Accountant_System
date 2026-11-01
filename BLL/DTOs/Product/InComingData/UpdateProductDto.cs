@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DAL.Enums;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
@@ -22,5 +23,13 @@ namespace BLL.DTOs.Product.InComingData
         public decimal RetailPrice { get; set; }
         [Required]
         public bool IsActive { get; set; }
+
+        public ProductCategory Category { get; set; } = ProductCategory.RegularProduct;
+
+        [Range(0.001, double.MaxValue, ErrorMessage = "وزن الكرتونة يجب أن يكون أكبر من صفر")]
+        public decimal? DefaultCartonWeightKg { get; set; }
+
+        [Range(0, double.MaxValue, ErrorMessage = "سعر الكجم يجب أن يكون أكبر من أو يساوي صفر")]
+        public decimal? MaritimePricePerKg { get; set; }
     }
 }

@@ -1,0 +1,150 @@
+@model BLL.DTOs.Inventory.InComingData.CreateStockOutDto
+@{
+    ViewData["Title"] = "إخراج سمك من الثلاجات";
+    var balances = ViewBag.Balances as Dictionary<int, BLL.DTOs.Inventory.OutGoingData.StockBalanceDto> ?? new();
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="bi bi-box-arrow-up text-danger me-2"></i> صرف وتحميل سمك مجمد (صادر الثلاجات)</h4>
+        <p class="text-muted small mb-0">تسجيل سحب أو إخراج فعلي من رصيد الثلاجات مع التحديث المباشر للمخزون</p>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-right me-1"></i> رجوع للمخزون
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 text-primary fw-bold">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> بيانات إذن الصرف والخروج الفعلي
+                </h5>
+                <small class="text-muted">يُسجّل الوزن الفعلي المخرج بالكجم بالمساواة مع ما خرج فعلياً لدى التسليم</small>
+            </div>
+            <div class="card-body p-4">
+                <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                <form asp-action="StockOut" method="post" id="stockOutForm">
+                    <div class="mb-3">
+                        <label asp-for="ProductId" class="form-label fw-bold">صنف السمك المجمد <span class="text-danger">*</span></label>
+                        <select asp-for="ProductId" class="form-select form-select-lg" id="stockOutProduct">
+                            <option value="">-- اختر صنف السمك من القائمة --</option>
+                            @foreach (var (id, balance) in balances.Where(b => b.Value.IsActive).OrderBy(b => b.Value.ProductName))
+                            {
+                                <option value="@id"
+                                        data-available-kg="@balance.AvailableKg.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-available-cartons="@balance.AvailableCartons.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                        data-per-carton="@((balance.DefaultCartonWeightKg ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))">
+                                    @balance.ProductName — متاح: @balance.AvailableKg.ToString("N3") كجم (@balance.AvailableCartons.ToString("N2") كرتونة)
+                                </option>
+                            }
+                        </select>
+                        <span asp-validation-for="ProductId" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="MovementDate" class="form-label fw-bold">تاريخ الخروج <span class="text-danger">*</span></label>
+                            <input asp-for="MovementDate" type="date" class="form-control" value="@Model.MovementDate.ToString("yyyy-MM-dd")" />
+                            <span asp-validation-for="MovementDate" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="WeightKg" class="form-label fw-bold">الوزن المخرج (كجم) <span class="text-danger">*</span></label>
+                            <input asp-for="WeightKg" type="number" step="0.001" min="0.001" class="form-control" id="stockOutWeight" placeholder="مثال: 250" />
+                            <span asp-validation-for="WeightKg" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="Cartons" class="form-label fw-bold">عدد الكراتين المخرجة</label>
+                            <input asp-for="Cartons" type="number" step="0.001" min="0.001" class="form-control" id="stockOutCartons" placeholder="يُحسب تلقائياً" />
+                            <span asp-validation-for="Cartons" class="text-danger small"></span>
+                            <div class="form-text small">اتركه فارغاً ليُحسب من الوزن ووزن الكرتونة.</div>
+                        </div>
+                    </div>
+
+                    <!-- Available Stock Live Display -->
+                    <div class="alert alert-info py-2 px-3 d-flex justify-content-between align-items-center mb-3 border-0 bg-info-subtle text-info-emphasis" id="stockStatusBox">
+                        <span class="fw-bold"><i class="bi bi-boxes me-1"></i> الرصيد المتاح حالياً بالثلاجات:</span>
+                        <strong id="availablePreview" class="font-tabular fs-5 text-dark">-</strong>
+                    </div>
+
+                    <!-- Stock Warning (Hidden by default) -->
+                    <div class="alert alert-danger py-2 px-3 d-none mb-3 border-0" id="stockWarningBox">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        <span id="stockWarningText"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="Reason" class="form-label fw-bold">سبب الخروج وجهة الصرف <span class="text-danger">*</span></label>
+                        <input asp-for="Reason" class="form-control" placeholder="مثال: إذن تسليم لشركة الملاحة / صرف توريد / أمر تحويل" />
+                        <span asp-validation-for="Reason" class="text-danger small"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-lg me-1"></i> إلغاء
+                        </a>
+                        <button type="submit" class="btn btn-danger px-4 fw-bold shadow-sm" id="submitBtn">
+                            <i class="bi bi-check-lg me-1"></i> تسجيل الخروج من الثلاجات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            const product = document.getElementById('stockOutProduct');
+            const weight = document.getElementById('stockOutWeight');
+            const cartons = document.getElementById('stockOutCartons');
+            const available = document.getElementById('availablePreview');
+            const warningBox = document.getElementById('stockWarningBox');
+            const warningText = document.getElementById('stockWarningText');
+            const submitBtn = document.getElementById('submitBtn');
+
+            function update() {
+                const opt = product.selectedOptions[0];
+                const availKg = opt && opt.dataset.availableKg ? parseFloat(opt.dataset.availableKg) : 0;
+                const availCartons = opt && opt.dataset.availableCartons ? parseFloat(opt.dataset.availableCartons) : 0;
+                const perCarton = opt && opt.dataset.perCarton ? parseFloat(opt.dataset.perCarton) : 0;
+
+                if (opt && opt.value) {
+                    available.textContent = availKg.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' كجم (' + availCartons.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' كرتونة)';
+                } else {
+                    available.textContent = '-';
+                }
+
+                const w = parseFloat(weight.value) || 0;
+
+                // Auto calculate cartons if user hasn't explicitly entered one
+                if (w > 0 && perCarton > 0 && !cartons.value) {
+                    const derived = Math.round((w / perCarton) * 1000) / 1000;
+                    cartons.placeholder = `المحسوب: ${derived} كرتونة`;
+                } else {
+                    cartons.placeholder = 'يُحسب تلقائياً';
+                }
+
+                // Validation against available stock
+                if (w > 0 && availKg > 0 && w > availKg) {
+                    warningBox.classList.remove('d-none');
+                    warningText.textContent = `تنبيه: الوزن المطلوب (${w.toLocaleString('en-US')} كجم) أكبر من الرصيد المتاح (${availKg.toLocaleString('en-US')} كجم)!`;
+                    submitBtn.classList.add('btn-secondary');
+                    submitBtn.classList.remove('btn-danger');
+                } else {
+                    warningBox.classList.add('d-none');
+                    submitBtn.classList.remove('btn-secondary');
+                    submitBtn.classList.add('btn-danger');
+                }
+            }
+
+            product.addEventListener('change', update);
+            weight.addEventListener('input', update);
+            update();
+        })();
+    </script>
+}

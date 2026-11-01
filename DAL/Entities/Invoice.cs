@@ -19,7 +19,14 @@ namespace DAL.Entities
         
         public int? VendorId { get; set; }
         public Vendor? Vendor { get; set; }
-        
+
+        // External order number issued by the maritime company (MaritimeSupply only).
+        // Internal InvoiceNumber (MAR-####) is generated separately by the system.
+        public string? ExternalOrderNumber { get; set; }
+
+        // Supply/order date received from the maritime company (MaritimeSupply only).
+        public DateTime? SupplyOrderDate { get; set; }
+
         public decimal SubTotal { get; set; }
         public decimal ItemDiscountTotal { get; set; }
         public decimal InvoiceDiscountAmount { get; set; }
@@ -36,5 +43,6 @@ namespace DAL.Entities
         public ICollection<PaymentAllocation> PaymentAllocations { get; set; } = new List<PaymentAllocation>();
         public ICollection<CreditNote> CreditNotes { get; set; } = new List<CreditNote>();
         public ICollection<CashTransaction> LinkedCashTransactions { get; set; } = new List<CashTransaction>();
+        public ICollection<StockMovement> StockMovements { get; set; } = new List<StockMovement>();
     }
 }

@@ -34,7 +34,7 @@ namespace BLL.Service
             var existVendor = await _unitOfWork.Vendors.GetByIdAsync(id);
             if (existVendor == null) return false;
             existVendor.IsActive = false;
-            await _unitOfWork.Vendors.Update(existVendor);
+            _unitOfWork.Vendors.Update(existVendor);
             await _unitOfWork.SaveChangesAsync();
             return true;
         }

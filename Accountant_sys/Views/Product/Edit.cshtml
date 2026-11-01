@@ -36,12 +36,39 @@
                 </div>
             </div>
 
-            <div class="mb-3 form-check">
-                <input asp-for="IsActive" class="form-check-input" />
-                <label asp-for="IsActive" class="form-check-label">نشط</label>
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label asp-for="Category" class="form-label fw-bold">تصنيف المنتج / النشاط</label>
+                    <select asp-for="Category" class="form-select form-select-lg" id="productCategory">
+                        <option value="@((int)DAL.Enums.ProductCategory.RegularProduct)">منتج عادي (غير متتبع بمخزون الثلاجات)</option>
+                        <option value="@((int)DAL.Enums.ProductCategory.FrozenFish)">سمك مجمد (متابعة مخزون الثلاجات وأوامر التوريد الملاحي)</option>
+                    </select>
+                    <span asp-validation-for="Category" class="text-danger small"></span>
+                </div>
             </div>
 
-            <button type="submit" class="btn btn-primary">
+            <div class="row p-3 rounded-3 mb-3 bg-light border" id="frozenFishFieldsRow" style="display:none;">
+                <div class="col-12 mb-2">
+                    <strong class="text-primary"><i class="bi bi-thermometer-snow me-1"></i> إعدادات الأسماك المجمدة والتوريد الملاحي:</strong>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="DefaultCartonWeightKg" class="form-label fw-bold">وزن الكرتونة الافتراضي (كجم) <span class="text-danger">*</span></label>
+                    <input asp-for="DefaultCartonWeightKg" class="form-control font-tabular" type="number" step="0.001" min="0.001" id="cartonWeightField" placeholder="مطلوب للأصناف المجمدة" />
+                    <span asp-validation-for="DefaultCartonWeightKg" class="text-danger small"></span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="MaritimePricePerKg" class="form-label fw-bold">سعر الكجم للشركات البحرية (اختياري)</label>
+                    <input asp-for="MaritimePricePerKg" class="form-control font-tabular" type="number" step="0.01" min="0" />
+                    <span asp-validation-for="MaritimePricePerKg" class="text-danger small"></span>
+                </div>
+            </div>
+
+            <div class="mb-3 form-check">
+                <input asp-for="IsActive" class="form-check-input" />
+                <label asp-for="IsActive" class="form-check-label fw-bold">صنف نشط (يظهر في فواتير وحركات النظام)</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary px-4 fw-bold">
                 <i class="bi bi-check-lg me-1"></i> حفظ التعديل
             </button>
             <a asp-action="Index" class="btn btn-outline-secondary">رجوع</a>
@@ -51,4 +78,20 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        function toggleFrozenFields() {
+            var cat = document.getElementById('productCategory').value;
+            var row = document.getElementById('frozenFishFieldsRow');
+            var weightInput = document.getElementById('cartonWeightField');
+            if (cat === "@((int)DAL.Enums.ProductCategory.FrozenFish)") {
+                row.style.display = 'flex';
+                weightInput.setAttribute('required', 'required');
+            } else {
+                row.style.display = 'none';
+                weightInput.removeAttribute('required');
+            }
+        }
+        document.getElementById('productCategory').addEventListener('change', toggleFrozenFields);
+        toggleFrozenFields();
+    </script>
 }

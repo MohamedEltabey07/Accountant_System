@@ -1,4 +1,4 @@
-﻿using DAL.Entities;
+﻿using DAL.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -18,6 +18,12 @@ namespace BLL.DTOs.Product.OutGoingData
         public decimal RetailPrice { get; set; }
 
         public bool IsActive { get; set; }
+
+        public ProductCategory Category { get; set; }
+
+        public decimal? DefaultCartonWeightKg { get; set; }
+
+        public decimal? MaritimePricePerKg { get; set; }
 
         public DateTime CreatedAt { get; set; }
 
