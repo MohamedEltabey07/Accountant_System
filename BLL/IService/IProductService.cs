@@ -11,6 +11,9 @@ namespace BLL.IService
     {
         public Task<List<ProductDto>> GetAllProductsAsync();
         public Task<List<ProductDto>> GetActiveProductsAsync();
+        // isActive: true = active only (default operational view),
+        // false = inactive only, null = all records (management view).
+        public Task<List<ProductDto>> GetProductsByActiveStatusAsync(bool? isActive);
         public Task<List<ProductDto>> GetProductsByCategoryAsync(ProductCategory category, bool activeOnly = true);
         public Task<ProductDto?> GetProductByIdAsync(int id);
         public Task<bool> UpdateProductAsync(UpdateProductDto dto);

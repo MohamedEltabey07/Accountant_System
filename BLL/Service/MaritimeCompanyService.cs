@@ -87,6 +87,15 @@ namespace BLL.Service
         public async Task<List<MaritimeCompanyDto>> GetActiveCompaniesAsync()
             => await MapWithBalancesAsync(await _unitOfWork.CustomerRepo.GetActiveByTypeAsync(CustomerType.MaritimeCompany));
 
+        // Status-filtered listing for index pages: operational views default to
+        // active only; inactive/all remain available for management.
+        public async Task<List<MaritimeCompanyDto>> GetCompaniesByActiveStatusAsync(bool? isActive)
+        {
+            var companies = (await _unitOfWork.CustomerRepo.GetByTypeAsync(CustomerType.MaritimeCompany))
+                ?.Where(c => !isActive.HasValue || c.IsActive == isActive.Value).ToList();
+            return await MapWithBalancesAsync(companies ?? new List<Customer>());
+        }
+
         public async Task<MaritimeCompanyDto?> GetCompanyByIdAsync(int id)
         {
             var company = await _unitOfWork.CustomerRepo.GetByIdAsync(id);

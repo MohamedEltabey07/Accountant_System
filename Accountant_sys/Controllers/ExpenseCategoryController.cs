@@ -1,3 +1,4 @@
+using Accountant_sys.Models;
 using BLL.DTOs.ExpenseCategory.InComingData;
 using BLL.DTOs.ExpenseCategory.OutGoingData;
 using BLL.IService;
@@ -18,10 +19,15 @@ namespace Accountant_sys.Controllers
         // LIST
         // ==========================================
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? status)
         {
-            var categories = await _expenseCategoryService.GetAllCategoriesAsync();
-            return View(categories ?? new List<ExpenseCategoryDto>());
+            // Operational listing defaults to ACTIVE expense categories only;
+            // the status filter (active/inactive/all) covers management.
+            var filter = ActiveStatusFilter.ToIsActive(status);
+            ViewBag.Status = string.IsNullOrWhiteSpace(status) ? "active" : ActiveStatusFilter.Normalize(status);
+            var categories = await _expenseCategoryService.GetCategoriesByActiveStatusAsync(filter)
+                ?? new List<ExpenseCategoryDto>();
+            return View(categories);
         }
 
         // ==========================================

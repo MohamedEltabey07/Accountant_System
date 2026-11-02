@@ -17,5 +17,8 @@ namespace BLL.DTOs.Invoice.InComingData
 
         [Range(0, double.MaxValue, ErrorMessage = "The discount must be greater than or equal to 0")]
         public decimal LineDiscountAmount { get; set; }
+
+        // Per-item supply source (MaritimeSupply drafts only).
+        public bool IsFromFreezer { get; set; }
     }
 }

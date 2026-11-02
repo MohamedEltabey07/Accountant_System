@@ -21,5 +21,12 @@ namespace DAL.Entities
         
         public decimal LineDiscountAmount { get; set; }
         public decimal LineTotal { get; set; }
+
+        // Supply source of this individual item on the invoice. Maritime supply
+        // orders only: when true the item is dispatched from the freezer stock
+        // (validated against the StockMovement ledger and deducted at posting).
+        // When false the item is supplied from outside the freezer and never
+        // touches stock. Default false keeps historical rows untouched.
+        public bool IsFromFreezer { get; set; }
     }
 }

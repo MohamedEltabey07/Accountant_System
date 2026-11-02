@@ -1,5 +1,6 @@
 using BLL.DTOs.CreditNote.OutGoingData;
 using BLL.DTOs.Customer.OutGoingData;
+using BLL.DTOs.Inventory.OutGoingData;
 using BLL.DTOs.Invoice.InComingData;
 using BLL.DTOs.Product.OutGoingData;
 using BLL.DTOs.Vendor.OutGoingData;
@@ -18,10 +19,11 @@ namespace Accountant_sys.Controllers
         private readonly IVendorService _vendorService;
         private readonly ICreditNoteService _creditNoteService;
         private readonly IMaritimeCompanyService _maritimeCompanyService;
+        private readonly IStockMovementService _stockMovementService;
 
         public InvoiceController(IInvoiceService invoiceService, IProductService productService,
             ICustomerService customerService, IVendorService vendorService, ICreditNoteService creditNoteService,
-            IMaritimeCompanyService maritimeCompanyService)
+            IMaritimeCompanyService maritimeCompanyService, IStockMovementService stockMovementService)
         {
             _invoiceService = invoiceService;
             _productService = productService;
@@ -29,6 +31,7 @@ namespace Accountant_sys.Controllers
             _vendorService = vendorService;
             _creditNoteService = creditNoteService;
             _maritimeCompanyService = maritimeCompanyService;
+            _stockMovementService = stockMovementService;
         }
 
         // ==========================================
@@ -295,10 +298,22 @@ namespace Accountant_sys.Controllers
 
         private async Task PrepareProductSelectList(InvoiceType invoiceType)
         {
-            // Maritime supply orders accept frozen fish items only.
-            var products = invoiceType == InvoiceType.MaritimeSupply
-                ? await _productService.GetProductsByCategoryAsync(ProductCategory.FrozenFish) ?? new List<ProductDto>()
-                : await _productService.GetActiveProductsAsync() ?? new List<ProductDto>();
+            if (invoiceType == InvoiceType.MaritimeSupply)
+            {
+                // Maritime supply orders may contain BOTH freezer-sourced and
+                // non-freezer-sourced items, so the catalog must offer every
+                // ACTIVE product; the per-item supply source decides whether
+                // freezer stock is validated/deducted at posting.
+                var activeProducts = await _productService.GetActiveProductsAsync() ?? new List<ProductDto>();
+                ViewBag.ProductOptions = activeProducts;
+
+                // Current freezer balances for live per-item availability hints.
+                var balances = await _stockMovementService.GetStockBalancesAsync() ?? new List<StockBalanceDto>();
+                ViewBag.FreezerBalances = balances.ToDictionary(b => b.ProductId);
+                return;
+            }
+
+            var products = await _productService.GetActiveProductsAsync() ?? new List<ProductDto>();
             ViewBag.Products = new SelectList(products, "Id", "Name");
         }
 

@@ -260,6 +260,7 @@
     <div class="card-body p-2 px-3">
         <form method="get" asp-controller="@Model.ControllerName" asp-action="Statement" class="row g-2 align-items-end">
             <input type="hidden" name="id" value="@Model.PartyId" />
+            <input type="hidden" name="mode" value="@Model.Mode" />
             
             <div class="col-sm-6 col-md-3">
                 <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i> من تاريخ</label>
@@ -454,7 +455,13 @@
                             <td class="text-center text-muted fw-bold font-tabular">@(lineIdx++)</td>
                             <td class="text-center font-tabular">@line.Date.ToString("yyyy-MM-dd")</td>
                             <td class="text-start">
-                                @if (line.DocumentType.Contains("فاتورة") || line.DocumentType.Contains("توريد"))
+                                @if (line.DocumentType.Contains("توريد"))
+                                {
+                                    <span class="status-pill status-pill-invoice">
+                                        <i class="bi bi-ship me-1"></i>أمر توريد بحري
+                                    </span>
+                                }
+                                else if (line.DocumentType.Contains("فاتورة"))
                                 {
                                     <span class="status-pill status-pill-invoice">
                                         <i class="bi bi-receipt me-1"></i>@(Model.PartyType == "Customer" ? "فاتورة مبيعات" : "فاتورة مشتريات")
@@ -485,7 +492,13 @@
                                     </span>
                                 }
                             </td>
-                            <td class="text-center font-monospace fw-bold text-dark" style="font-size: 0.80rem;">@line.DocumentNo</td>
+                            <td class="text-center font-monospace fw-bold text-dark" style="font-size: 0.80rem;">
+                                @line.DocumentNo
+                                @if (!string.IsNullOrWhiteSpace(line.SecondaryDocNo))
+                                {
+                                    <div class="small text-muted fw-normal" style="font-size: 0.68rem;">(@line.SecondaryDocNo)</div>
+                                }
+                            </td>
                             <td class="text-center font-tabular @(line.Debit > 0 ? "text-danger fw-bold" : "text-muted")">
                                 @(line.Debit > 0 ? line.Debit.ToString("N2") : "-")
                             </td>

@@ -41,9 +41,14 @@ namespace Accountant_sys.Controllers
         // LIST
         // ==========================================
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? status)
         {
-            var companies = await _maritimeCompanyService.GetAllCompaniesAsync() ?? new List<MaritimeCompanyDto>();
+            // Operational listing defaults to ACTIVE maritime companies only;
+            // the status filter (active/inactive/all) covers management.
+            var filter = ActiveStatusFilter.ToIsActive(status);
+            ViewBag.Status = string.IsNullOrWhiteSpace(status) ? "active" : ActiveStatusFilter.Normalize(status);
+            var companies = await _maritimeCompanyService.GetCompaniesByActiveStatusAsync(filter)
+                ?? new List<MaritimeCompanyDto>();
             return View(companies);
         }
 
@@ -67,12 +72,22 @@ namespace Accountant_sys.Controllers
 
         // ==========================================
         // ACCOUNT STATEMENT
+        // mode: "summary"  = summary ledger (each supply order one row,
+        //                     carrying its EXTERNAL order number).
+        //       "detailed" = detailed supply orders statement (per-order
+        //                     header + all items + prominent order total).
+        // Both modes render from the same ledger lines, so financial totals
+        // are identical for identical filters.
         // ==========================================
         [HttpGet]
-        public async Task<IActionResult> Statement(int? id, DateTime? from, DateTime? to)
+        public async Task<IActionResult> Statement(int? id, DateTime? from, DateTime? to, string? mode)
         {
             var activeCompanies = await _maritimeCompanyService.GetActiveCompaniesAsync() ?? new List<MaritimeCompanyDto>();
             ViewBag.Parties = new SelectList(activeCompanies, "Id", "Name");
+
+            ViewBag.Mode = string.Equals(mode, "detailed", StringComparison.OrdinalIgnoreCase)
+                ? "detailed"
+                : "summary";
 
             if (id == null || id <= 0)
                 return View();
@@ -81,11 +96,23 @@ namespace Accountant_sys.Controllers
                 ?? (await _maritimeCompanyService.GetAllCompaniesAsync() ?? new List<MaritimeCompanyDto>()).FirstOrDefault(c => c.Id == id);
             if (company == null) return NotFound();
 
+            ViewBag.SelectedCompanyId = company.Id;
+
             var fromDate = from ?? DateTime.Today.AddYears(-10);
             var toDate = to ?? DateTime.Today;
 
             var ledger = await BuildMaritimeLedgerAsync(id.Value, fromDate, toDate);
             var model = StatementBuilder.Build(ledger, isVendor: false, company.Id, company.Name, "MaritimeCompany", from, to);
+            model.Mode = (string)ViewBag.Mode;
+
+            // The detailed supply-orders mode needs the full order bodies
+            // (external number + every item + per-order total) — same posted
+            // invoices the summary ledger is built from.
+            if (ViewBag.Mode == "detailed")
+            {
+                ViewBag.SupplyOrders = await _invoiceService.GetMaritimeSupplyOrdersAsync(company.Id, fromDate, toDate)
+                    ?? new List<BLL.DTOs.MaritimeCompany.OutGoingData.MaritimeSupplyOrderDto>();
+            }
 
             return View(model);
         }
@@ -113,11 +140,19 @@ namespace Accountant_sys.Controllers
             var companySupplies = supplies.Where(i => i.CustomerId == companyId).ToList();
             foreach (var supply in companySupplies)
             {
+                // The external supply order number is the identifier the
+                // maritime company uses to reconcile its orders — it must be
+                // visible next to every order's date and amount. The internal
+                // MAR-#### document number stays visible as a secondary label.
+                var externalNo = string.IsNullOrWhiteSpace(supply.ExternalOrderNumber)
+                    ? supply.InvoiceNumber
+                    : supply.ExternalOrderNumber;
                 lines.Add(new StatementLine
                 {
                     Date = supply.TransactionDate,
                     DocumentId = supply.Id,
-                    DocumentNo = supply.InvoiceNumber,
+                    DocumentNo = externalNo,
+                    SecondaryDocNo = string.IsNullOrWhiteSpace(supply.ExternalOrderNumber) ? null : supply.InvoiceNumber,
                     DocumentType = "أمر توريد بحري (مبيعات)",
                     Debit = supply.TotalAmount
                 });

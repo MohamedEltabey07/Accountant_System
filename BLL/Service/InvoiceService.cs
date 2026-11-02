@@ -1,6 +1,8 @@
 using AutoMapper;
 using BLL.DTOs.Invoice.InComingData;
 using BLL.DTOs.Invoice.OutGoingData;
+using BLL.DTOs.MaritimeCompany.OutGoingData;
+using BLL.DTOs.Product.OutGoingData;
 using BLL.IService;
 using DAL.Entities;
 using DAL.Enums;
@@ -38,6 +40,18 @@ namespace BLL.Service
                 _ => false
             };
             if (!isValidType) return 0;
+
+            // Purchase invoices draw only on ACTIVE vendors; inactive vendors
+            // remain readable through historical documents but cannot be picked
+            // for new purchases.
+            if (dto.VendorId.HasValue)
+            {
+                var vendor = await _unitOfWork.Vendors.GetByIdAsync(dto.VendorId.Value)
+                    ?? throw new InvalidOperationException("المورد المحدد غير موجود في النظام.");
+
+                if (!vendor.IsActive)
+                    throw new InvalidOperationException($"المورد ({vendor.Name}) غير نشط ولا يمكن إصدار فواتير شراء له.");
+            }
 
             // Party-vs-invoice-type validation: wholesale invoices bill wholesale
             // customers only; maritime supply bills maritime companies only.
@@ -116,11 +130,16 @@ namespace BLL.Service
             var product = await _productService.GetProductByIdAsync(dto.ProductId);
             if (product == null) return false;
 
-            if (invoice.Type == InvoiceType.MaritimeSupply &&
-                product.Category != ProductCategory.FrozenFish)
+            if (!product.IsActive)
+                throw new InvalidOperationException($"الصنف ({product.Name}) غير نشط، لا يمكن إصدار فواتير له.");
+
+            if (invoice.Type == InvoiceType.MaritimeSupply)
             {
-                throw new InvalidOperationException(
-                    $"أوامر التوريد البحرية تقبل أصناف الأسماك المجمدة فقط، والصنف ({product.Name}) ليس صنفاً مجمداً.");
+                ValidateMaritimeItemSourcing(product, dto.IsFromFreezer);
+            }
+            else if (dto.IsFromFreezer)
+            {
+                throw new InvalidOperationException("خيار (التوريد من الثلاجة) مسموح فقط في أوامر التوريد للشركات البحرية.");
             }
 
             var unitPrice = dto.UnitPrice ?? invoice.Type switch
@@ -186,6 +205,25 @@ namespace BLL.Service
             item.LineDiscountAmount = dto.LineDiscountAmount;
             item.LineTotal = gross - dto.LineDiscountAmount;
 
+            // The supply source of the item can be changed while the invoice is
+            // still a draft; it must follow the same per-item sourcing rules.
+            var productForUpdate = await _productService.GetProductByIdAsync(item.ProductId);
+            if (productForUpdate == null)
+                throw new InvalidOperationException($"الصنف رقم ({item.ProductId}) غير موجود في دليل المنتجات.");
+
+            if (!productForUpdate.IsActive)
+                throw new InvalidOperationException($"الصنف ({productForUpdate.Name}) غير نشط، لا يمكن إصدار فواتير له.");
+
+            if (item.Invoice.Type == InvoiceType.MaritimeSupply)
+            {
+                ValidateMaritimeItemSourcing(productForUpdate, dto.IsFromFreezer);
+            }
+            else if (dto.IsFromFreezer)
+            {
+                throw new InvalidOperationException("خيار (التوريد من الثلاجة) مسموح فقط في أوامر التوريد للشركات البحرية.");
+            }
+            item.IsFromFreezer = dto.IsFromFreezer;
+
             RecalculateInvoiceTotals(item.Invoice);
             await _unitOfWork.SaveChangesAsync();
             return true;
@@ -201,6 +239,27 @@ namespace BLL.Service
             RecalculateInvoiceTotals(item.Invoice);
             await _unitOfWork.SaveChangesAsync();
             return true;
+        }
+
+        // Per-item supply source for maritime supply orders is an explicit
+        // business decision made on each invoice row; it is NEVER inferred
+        // from the product's frozen classification:
+        //  - IsFromFreezer = true  -> the item must be a frozen-fish product
+        //    (and inactive products cannot be supplied at all); freezer stock is
+        //    validated and deducted only when the order is actually posted.
+        //  - IsFromFreezer = false -> any active catalog product is accepted and
+        //    the freezer ledger is neither inspected nor modified.
+        private static void ValidateMaritimeItemSourcing(ProductDto product, bool isFromFreezer)
+        {
+            if (!product.IsActive)
+                throw new InvalidOperationException($"الصنف ({product.Name}) غير نشط، لا يمكن إصدار فواتير له.");
+
+            if (!isFromFreezer)
+                return;
+
+            if (product.Category != ProductCategory.FrozenFish)
+                throw new InvalidOperationException(
+                    $"الصنف ({product.Name}) ليس من أصناف الأسماك المجمدة، ولذلك لا يمكن تعليمه (التوريد من الثلاجة).");
         }
 
         public async Task<bool> PostInvoiceAsync(int invoiceId)
@@ -243,9 +302,12 @@ namespace BLL.Service
                     if (invoice.Customer?.Type != CustomerType.MaritimeCompany)
                         throw new InvalidOperationException("لا يمكن ترحيل أمر التوريد البحري: جهة الفاتورة غير معرفة أو ليست شركة بحرية.");
 
-                    // Group the required weight per fish item (same product may appear
+                    // Only items explicitly supplied FROM the freezer consume stock:
+                    // group the required weight per fish item (same product may appear
                     // on multiple lines; posting validates the combined requirement).
+                    // Non-freezer items are never inspected against the ledger.
                     var requiredByProduct = invoice.Items
+                        .Where(i => i.IsFromFreezer)
                         .GroupBy(i => i.ProductId)
                         .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
 
@@ -279,6 +341,11 @@ namespace BLL.Service
                     {
                         if (!string.IsNullOrWhiteSpace(item.Product?.Name))
                             item.ProductName = item.Product.Name;
+
+                        // Stock-out movements are created ONLY for items whose
+                        // supply source is the freezer; non-freezer items are
+                        // invoiced normally and never touch the ledger.
+                        if (!item.IsFromFreezer) continue;
 
                         var product = item.Product ?? await _unitOfWork.ProductRepo.GetByIdAsync(item.ProductId);
                         var perCarton = product!.DefaultCartonWeightKg ?? 0m;
@@ -448,6 +515,55 @@ namespace BLL.Service
             }
 
             return dtos;
+        }
+
+        // Posted maritime supply orders (with their items) for the maritime
+        // company account statements. Both statement modes (summary + detailed)
+        // consume this exact query so their financial totals always agree.
+        // Date window semantics match StatementBuilder: [from, to] inclusive days.
+        public async Task<List<MaritimeSupplyOrderDto>> GetMaritimeSupplyOrdersAsync(int? customerId, DateTime? from, DateTime? to)
+        {
+            var invoices = await _unitOfWork.InvoiceRepo.GetPostedMaritimeSupplyOrdersAsync(customerId)
+                           ?? new List<Invoice>();
+
+            var fromDate = from?.Date;
+            var toDate = to?.Date;
+
+            var orders = new List<MaritimeSupplyOrderDto>();
+            foreach (var invoice in invoices)
+            {
+                if (fromDate.HasValue && invoice.TransactionDate.Date < fromDate.Value) continue;
+                if (toDate.HasValue && invoice.TransactionDate.Date >= toDate.Value.AddDays(1)) continue;
+
+                orders.Add(new MaritimeSupplyOrderDto
+                {
+                    InvoiceId = invoice.Id,
+                    InvoiceNumber = invoice.InvoiceNumber,
+                    ExternalOrderNumber = invoice.ExternalOrderNumber ?? string.Empty,
+                    SupplyOrderDate = invoice.SupplyOrderDate,
+                    TransactionDate = invoice.TransactionDate,
+                    CustomerId = invoice.CustomerId ?? 0,
+                    CompanyName = invoice.Customer?.Name ?? string.Empty,
+                    TotalAmount = invoice.TotalAmount,
+                    Items = invoice.Items
+                        .OrderBy(i => i.Id)
+                        .Select(i => new MaritimeSupplyOrderItemDto
+                        {
+                            ProductId = i.ProductId,
+                            ProductName = !string.IsNullOrWhiteSpace(i.ProductName)
+                                ? i.ProductName
+                                : (i.Product != null ? i.Product.Name : "صنف غير محدد"),
+                            Quantity = i.Quantity,
+                            UnitPrice = i.UnitPrice,
+                            LineDiscountAmount = i.LineDiscountAmount,
+                            LineTotal = i.LineTotal,
+                            IsFromFreezer = i.IsFromFreezer
+                        })
+                        .ToList()
+                });
+            }
+
+            return orders;
         }
 
         private static (decimal PaidAmount, decimal RemainingBalance) ComputeSettlement(Invoice invoice)

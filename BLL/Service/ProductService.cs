@@ -78,6 +78,15 @@ namespace BLL.Service
             return listOfAvtiveProductsDto;
         }
 
+        // Status-filtered product listing for index pages: operational views
+        // default to active only; inactive/all remain available for management.
+        public async Task<List<ProductDto>> GetProductsByActiveStatusAsync(bool? isActive)
+        {
+            var products = (await _unitOfWork.ProductRepo.GetAllAsync())
+                .Where(p => !isActive.HasValue || p.IsActive == isActive.Value);
+            return _mapper.Map<List<ProductDto>>(products.ToList());
+        }
+
         public async Task<ProductDto?> GetProductByIdAsync(int id)
         {
             var product = await _unitOfWork.ProductRepo.GetByIdAsync(id);

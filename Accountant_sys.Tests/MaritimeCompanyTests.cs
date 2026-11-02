@@ -80,7 +80,8 @@ namespace Accountant_sys.Tests
                 {
                     InvoiceId = draftId,
                     ProductId = fish.Id,
-                    Quantity = qty
+                    Quantity = qty,
+                    IsFromFreezer = true
                 });
                 await _harness.InvoiceService.PostInvoiceAsync(draftId);
                 invoiceIds.Add((company.Id, draftId));
@@ -128,7 +129,8 @@ namespace Accountant_sys.Tests
             {
                 InvoiceId = draftId,
                 ProductId = fish.Id,
-                Quantity = 25.5m
+                Quantity = 25.5m,
+                IsFromFreezer = true
             });
             await _harness.InvoiceService.PostInvoiceAsync(draftId);
 

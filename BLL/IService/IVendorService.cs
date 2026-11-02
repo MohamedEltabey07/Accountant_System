@@ -12,6 +12,9 @@ namespace BLL.IService
     {
         public Task<List<VendorDto>> GetAllVendorAsync();
         public Task<List<VendorDto>> GetActiveVendorAsync();
+        // isActive: true = active only (default operational view),
+        // false = inactive only, null = all records (management view).
+        public Task<List<VendorDto>> GetVendorsByActiveStatusAsync(bool? isActive);
         public Task<VendorDto?> GetVendorByIdAsync(int id);
         public Task<decimal> GetVendorBalanceAsync(int vendorId);
         public Task<bool> CreateVendorAsync(CreateVendorDto dto);

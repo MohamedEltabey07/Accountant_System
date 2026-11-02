@@ -27,6 +27,7 @@ namespace BLL.Service
             if (dto.Amount <= 0) throw new InvalidOperationException("يجب ان يكون المبلغ المالي اكبر من الصفر");
             var checkCstExist = await _unitOfWork.CustomerRepo.GetByIdAsync(dto.CustomerId.Value);
             if (checkCstExist == null) throw new NullReferenceException("هذا العميل غير موجود");
+            if (!checkCstExist.IsActive) throw new InvalidOperationException($"العميل ({checkCstExist.Name}) غير نشط، لا يمكن إنشاء رصيد افتتاحي له.");
             var checkCstHasOpeningBalance = await _unitOfWork.OpeningBalanceRepo.GetByCustomerIdAsync(dto.CustomerId.Value);
             if (checkCstHasOpeningBalance != null) throw new InvalidOperationException("هذا العميل لديه حساب مفتوح بالفعل");
             var mappedOpeningBalance = _mapper.Map<OpeningBalanceEntry>(dto);
@@ -43,6 +44,7 @@ namespace BLL.Service
             if (dto.Amount <= 0) throw new InvalidOperationException("يجب ان يكون المبلغ المالي اكبر من الصفر");
             var checkVdExist = await _unitOfWork.Vendors.GetByIdAsync(dto.VendorId.Value);
             if (checkVdExist == null) throw new NullReferenceException("هذا العميل غير موجود");
+            if (!checkVdExist.IsActive) throw new InvalidOperationException($"المورد ({checkVdExist.Name}) غير نشط، لا يمكن إنشاء رصيد افتتاحي له.");
             var checkVdHasOpeningBalance = await _unitOfWork.OpeningBalanceRepo.GetByVendorIdAsync(dto.VendorId.Value);
             if (checkVdHasOpeningBalance != null) throw new InvalidOperationException("هذا العميل لديه حساب مفتوح بالفعل");
             var mappedOpeningBalance = _mapper.Map<OpeningBalanceEntry>(dto);

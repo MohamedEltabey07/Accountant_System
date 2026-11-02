@@ -1,3 +1,4 @@
+using Accountant_sys.Models;
 using BLL.DTOs.Product.InComingData;
 using BLL.DTOs.Product.OutGoingData;
 using BLL.IService;
@@ -18,9 +19,13 @@ namespace Accountant_sys.Controllers
         // LIST
         // ==========================================
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? status)
         {
-            var products = await _productService.GetAllProductsAsync() ?? new List<ProductDto>();
+            // Operational listing defaults to ACTIVE products only; the status
+            // filter (active/inactive/all) covers management and re-activation.
+            var filter = ActiveStatusFilter.ToIsActive(status);
+            ViewBag.Status = string.IsNullOrWhiteSpace(status) ? "active" : ActiveStatusFilter.Normalize(status);
+            var products = await _productService.GetProductsByActiveStatusAsync(filter) ?? new List<ProductDto>();
             return View(products);
         }
 

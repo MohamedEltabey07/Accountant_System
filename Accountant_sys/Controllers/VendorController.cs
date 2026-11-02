@@ -38,9 +38,13 @@ namespace Accountant_sys.Controllers
         // LIST
         // ==========================================
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? status)
         {
-            var vendors = await _vendorService.GetAllVendorAsync() ?? new List<VendorDto>();
+            // Operational listing defaults to ACTIVE vendors only; the status
+            // filter (active/inactive/all) covers management.
+            var filter = ActiveStatusFilter.ToIsActive(status);
+            ViewBag.Status = string.IsNullOrWhiteSpace(status) ? "active" : ActiveStatusFilter.Normalize(status);
+            var vendors = await _vendorService.GetVendorsByActiveStatusAsync(filter) ?? new List<VendorDto>();
             return View(vendors);
         }
 

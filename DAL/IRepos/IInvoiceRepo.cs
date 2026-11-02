@@ -15,6 +15,8 @@ namespace DAL.IRepos
         public Task<List<Invoice>> GetCustomerOpenInvoices(int customerId);
         public  Task<List<Invoice>> GetVendorOpenInvoices(int vendorId);
         public Task<List<Invoice>> GetAllPostedInvoices();
+        // Posted maritime supply orders (with items + customer) for statements.
+        public Task<List<Invoice>> GetPostedMaritimeSupplyOrdersAsync(int? customerId);
 
     }
 }

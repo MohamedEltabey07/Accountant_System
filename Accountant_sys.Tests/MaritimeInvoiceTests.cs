@@ -60,7 +60,7 @@ namespace Accountant_sys.Tests
         }
 
         [Fact]
-        public async Task MaritimeDraft_NonFrozenProduct_Throws()
+        public async Task MaritimeDraft_NonFrozenProduct_FromFreezer_Throws()
         {
             var company = _harness.SeedMaritimeCompany("شركة ملاحة 4");
             var rice = _harness.SeedRegularProduct("رز عادي");
@@ -73,12 +73,14 @@ namespace Accountant_sys.Tests
                 SupplyOrderDate = DateTime.Today
             });
 
+            // A regular product cannot be tagged as supplied FROM the freezer.
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 _harness.InvoiceService.AddItemToDraftAsync(new AddInvoiceItemDto
                 {
                     InvoiceId = draftId,
                     ProductId = rice.Id,
-                    Quantity = 5m
+                    Quantity = 5m,
+                    IsFromFreezer = true
                 }));
         }
 

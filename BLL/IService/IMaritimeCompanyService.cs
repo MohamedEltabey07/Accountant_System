@@ -19,6 +19,10 @@ namespace BLL.IService
 
         Task<List<MaritimeCompanyDto>> GetActiveCompaniesAsync();
 
+        // isActive: true = active only (default operational view),
+        // false = inactive only, null = all records (management view).
+        Task<List<MaritimeCompanyDto>> GetCompaniesByActiveStatusAsync(bool? isActive);
+
         Task<MaritimeCompanyDto?> GetCompanyByIdAsync(int id);
 
         Task<decimal> GetCompanyBalanceAsync(int companyId);

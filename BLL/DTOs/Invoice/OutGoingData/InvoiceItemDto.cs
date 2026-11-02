@@ -15,5 +15,8 @@ namespace BLL.DTOs.Invoice.OutGoingData
         public decimal LineDiscountAmount { get; set; }
 
         public decimal LineTotal { get; set; }
+
+        // Maritime supply items only: the item's supply source (see entity comment).
+        public bool IsFromFreezer { get; set; }
     }
 }

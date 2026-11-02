@@ -121,11 +121,22 @@ namespace BLL.Service
                 // Returned frozen fish physically re-enters the freezers: when the
                 // original invoice was a maritime supply, post an In stock movement
                 // per returned line (atomically with the credit note posting).
+                // Only products whose original invoice item was explicitly supplied
+                // FROM the freezer may re-enter stock (the per-item supply source,
+                // not the product classification, decides this).
                 if (creditNote.Type == CreditNoteType.CustomerReturn &&
                     checkInvoice.Type == InvoiceType.MaritimeSupply)
                 {
+                    var freezerProductIds = checkInvoice.Items
+                        .Where(i => i.IsFromFreezer)
+                        .Select(i => i.ProductId)
+                        .ToHashSet();
+
                     foreach (var returnedItem in creditNote.Items)
                     {
+                        if (!freezerProductIds.Contains(returnedItem.ProductId))
+                            continue;
+
                         var product = await _unitOfWork.ProductRepo.GetByIdAsync(returnedItem.ProductId);
                         if (product == null || product.Category != ProductCategory.FrozenFish)
                             continue;

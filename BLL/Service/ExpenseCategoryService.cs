@@ -29,6 +29,15 @@ namespace BLL.Service
 
         }
 
+        // Status-filtered listing for index pages: operational views default to
+        // active only; inactive/all remain available for management.
+        public async Task<List<ExpenseCategoryDto>> GetCategoriesByActiveStatusAsync(bool? isActive)
+        {
+            var categories = (await _unitOfWork.ExpenseCategoryRepo.GetAllAsync())
+                .Where(c => !isActive.HasValue || c.IsActive == isActive.Value);
+            return _mapper.Map<List<ExpenseCategoryDto>>(categories.ToList());
+        }
+
         public async Task<List<ExpenseCategoryDto>> GetActiveCategoriesAsync()
         {
             var allCategoriesList = await _unitOfWork.ExpenseCategoryRepo.GetActiveCategoriesAsync();

@@ -1,14 +1,21 @@
 @model List<BLL.DTOs.ExpenseCategory.OutGoingData.ExpenseCategoryDto>
 @{
     ViewData["Title"] = "بنود المصروفات";
+    var currentStatus = ViewBag.Status as string ?? "active";
 }
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+<div class="d-flex flex-wrap flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4 gap-2">
     <div>
         <h4 class="fw-bold mb-1"><i class="bi bi-tags-fill text-primary me-2"></i> بنود مصروفات التشغيل</h4>
         <p class="text-muted mb-0">إدارة وتصنيف بنود المصروفات (إيجار، كهرباء، صيانة، مرتبات، مستلزمات)</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <!-- Active Status Filter (backend-filtered via ?status=) -->
+        <div class="btn-group btn-group-sm" role="group" aria-label="فلتر حالة البند">
+            <a asp-action="Index" asp-route-status="active" class="btn @(currentStatus == "active" ? "btn-primary" : "btn-outline-primary")">نشط</a>
+            <a asp-action="Index" asp-route-status="inactive" class="btn @(currentStatus == "inactive" ? "btn-secondary" : "btn-outline-secondary")">غير نشط</a>
+            <a asp-action="Index" asp-route-status="all" class="btn @(currentStatus == "all" ? "btn-dark" : "btn-outline-dark")">الكل</a>
+        </div>
         <a asp-controller="Payment" asp-action="Expense" class="btn btn-warning shadow-sm fw-bold">
             <i class="bi bi-cash-stack me-1"></i> تسجيل صرف مصروف
         </a>

@@ -10,6 +10,9 @@ namespace BLL.IService
     {
         public Task<List<CustomerDto>> GetAllCustomersAsync();
         public Task<List<CustomerDto>> GetActiveCustomersAsync();
+        // isActive: true = active only (default operational view),
+        // false = inactive only, null = all records (management view).
+        public Task<List<CustomerDto>> GetCustomersByActiveStatusAsync(bool? isActive);
         public Task<CustomerDto?> GetCustomerByIdAsync(int id);
         public Task<decimal> GetCustomerBalanceAsync(int customerId);
         public Task<bool> CreateCustomerAsync(CreateCustomerDto dto);

@@ -38,9 +38,13 @@ namespace Accountant_sys.Controllers
         // LIST
         // ==========================================
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? status)
         {
-            var customers = await _customerService.GetAllCustomersAsync() ?? new List<CustomerDto>();
+            // Operational listing defaults to ACTIVE wholesale customers only;
+            // the status filter (active/inactive/all) covers management.
+            var filter = ActiveStatusFilter.ToIsActive(status);
+            ViewBag.Status = string.IsNullOrWhiteSpace(status) ? "active" : ActiveStatusFilter.Normalize(status);
+            var customers = await _customerService.GetCustomersByActiveStatusAsync(filter) ?? new List<CustomerDto>();
             return View(customers);
         }
 

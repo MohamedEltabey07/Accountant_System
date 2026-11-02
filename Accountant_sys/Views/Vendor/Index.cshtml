@@ -1,6 +1,7 @@
 @model List<BLL.DTOs.Vendor.OutGoingData.VendorDto>
 @{
     ViewData["Title"] = "سجل الموردين";
+    var currentStatus = ViewBag.Status as string ?? "active";
 }
 
 <!-- Page Header -->
@@ -31,7 +32,13 @@
                     <input type="text" class="form-control border-start-0" placeholder="بحث فوري باسم المورد، الهاتف، أو الكود..." data-table-search="vendorTable" data-counter-target="vendorCounter" />
                 </div>
             </div>
-            <div class="col-md-7 text-md-start">
+            <div class="col-md-7 d-flex flex-wrap align-items-md-start gap-3">
+                <!-- Active Status Filter (backend-filtered via ?status=) -->
+                <div class="btn-group btn-group-sm" role="group" aria-label="فلتر حالة المورد">
+                    <a asp-action="Index" asp-route-status="active" class="btn @(currentStatus == "active" ? "btn-primary" : "btn-outline-primary")">نشط</a>
+                    <a asp-action="Index" asp-route-status="inactive" class="btn @(currentStatus == "inactive" ? "btn-secondary" : "btn-outline-secondary")">غير نشط</a>
+                    <a asp-action="Index" asp-route-status="all" class="btn @(currentStatus == "all" ? "btn-dark" : "btn-outline-dark")">الكل</a>
+                </div>
                 <span class="badge bg-light text-dark border p-2 font-tabular" id="vendorCounter">
                     عرض @Model.Count من إجمالي @Model.Count مورد
                 </span>

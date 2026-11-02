@@ -1,7 +1,11 @@
 @model Accountant_sys.Models.StatementViewModel
 @using Microsoft.AspNetCore.Mvc.Rendering
+@using BLL.DTOs.MaritimeCompany.OutGoingData
 @{
     ViewData["Title"] = "كشف حساب شركة بحرية";
+
+    var selectedMode = Model?.Mode ?? "summary";
+    var supplyOrders = ViewBag.SupplyOrders as List<MaritimeSupplyOrderDto> ?? new List<MaritimeSupplyOrderDto>();
 }
 
 @if (Model == null)
@@ -20,7 +24,8 @@
                 </div>
                 <div class="card-body p-4">
                     <p class="text-muted mb-4">
-                        حدد الشركة البحرية واختيارياً نطاق التاريخ لاستخراج كشف حساب يشمل أوامر التوريد المرحلة، سندات الدفعات المستلمة، والإشعارات الائتمانية.
+                        حدد الشركة البحرية واختيارياً نطاق التاريخ لاستخراج كشف حساب يشمل أوامر التوريد المرحلة (بأرقام
+                        أوامر التوريد الخارجية الخاصة بالشركة)، سندات الدفعات المستلمة، والإشعارات الائتمانية.
                     </p>
 
                     <form method="get" asp-controller="MaritimeCompany" asp-action="Statement" class="row g-3">
@@ -37,13 +42,20 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">من تاريخ (اختياري)</label>
                             <input type="date" value="2000-01-01" name="from" class="form-control" />
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">إلى تاريخ (اختياري)</label>
                             <input type="date" value="2100-01-01" name="to" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">شكل الكشف</label>
+                            <select name="mode" class="form-select">
+                                <option value="summary">كشف موجز (كل أمر توريد بسطر)</option>
+                                <option value="detailed">كشف تفصيلي لأوامر التوريد (الأصناف والتوتال لكل أمر)</option>
+                            </select>
                         </div>
                         <div class="col-12 pt-3 border-top d-flex gap-2 justify-content-end">
                             <a asp-controller="MaritimeCompany" asp-action="Index" class="btn btn-outline-secondary">إلغاء</a>
@@ -59,5 +71,33 @@
 }
 else
 {
-    <partial name="_StatementTable" model="Model" />
+    <!-- Mode Switch: Summary vs Detailed Supply Orders (Screen Only) -->
+    <div class="d-flex justify-content-center mb-3 d-print-none">
+        <div class="btn-group shadow-sm" role="group" aria-label="شكل كشف الحساب">
+            <a asp-controller="MaritimeCompany" asp-action="Statement"
+               asp-route-id="@Model.PartyId" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")"
+               asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-mode="summary"
+               class="btn btn-sm @(selectedMode == "summary" ? "btn-primary fw-bold" : "btn-outline-primary")">
+                <i class="bi bi-list-columns-reverse me-1"></i> كشف موجز
+            </a>
+            <a asp-controller="MaritimeCompany" asp-action="Statement"
+               asp-route-id="@Model.PartyId" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")"
+               asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-mode="detailed"
+               class="btn btn-sm @(selectedMode == "detailed" ? "btn-primary fw-bold" : "btn-outline-primary")">
+                <i class="bi bi-card-text me-1"></i> تفصيلية أوامر التوريد
+            </a>
+        </div>
+    </div>
+
+    @if (selectedMode == "detailed")
+    {
+        <!-- Detailed Supply Orders Statement: per-order header + full items.
+             The partial inherits ViewData (SupplyOrders supplied by the controller). -->
+        <partial name="_MaritimeDetailedStatement" model="Model" />
+    }
+    else
+    {
+        <!-- Summary Statement: one ledger row per order carrying the EXTERNAL supply order number -->
+        <partial name="_StatementTable" model="Model" />
+    }
 }

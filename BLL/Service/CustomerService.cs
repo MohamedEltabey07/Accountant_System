@@ -67,6 +67,20 @@ namespace BLL.Service
             return mapToCustomerDtoList;
         }
 
+        // Status-filtered listing for index pages: operational views default to
+        // active only; inactive/all remain available for management.
+        public async Task<List<CustomerDto>> GetCustomersByActiveStatusAsync(bool? isActive)
+        {
+            var listOfCustomers = (await _unitOfWork.CustomerRepo.GetAllAsync())
+                ?.Where(c => c.Type == CustomerType.WholesaleCustomer
+                             && (!isActive.HasValue || c.IsActive == isActive.Value)).ToList();
+            if (listOfCustomers == null) return null;
+            var mapToCustomerDtoList = _mapper.Map<List<CustomerDto>>(listOfCustomers);
+            foreach (var cst in mapToCustomerDtoList)
+                cst.CurrentBalance = await GetCustomerBalanceAsync(cst.Id);
+            return mapToCustomerDtoList;
+        }
+
         public async Task<decimal> GetCustomerBalanceAsync(int customerId)
         {
             var customerBalance = await _unitOfWork.CustomerRepo.GetCustomerBalanceAsync(customerId);

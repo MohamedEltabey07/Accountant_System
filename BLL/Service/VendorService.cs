@@ -59,6 +59,19 @@ namespace BLL.Service
             return mapToVendorDtoList;
         }
 
+        // Status-filtered listing for index pages: operational views default to
+        // active only; inactive/all remain available for management.
+        public async Task<List<VendorDto>> GetVendorsByActiveStatusAsync(bool? isActive)
+        {
+            var listOfVendors = (await _unitOfWork.Vendors.GetAllAsync())
+                ?.Where(v => !isActive.HasValue || v.IsActive == isActive.Value).ToList()
+                ?? new List<DAL.Entities.Vendor>();
+            var mapToVendorDtoList = _mapper.Map<List<VendorDto>>(listOfVendors);
+            foreach (var vendor in mapToVendorDtoList)
+                vendor.CurrentBalance = await GetVendorBalanceAsync(vendor.Id);
+            return mapToVendorDtoList;
+        }
+
         public async Task<decimal> GetVendorBalanceAsync(int vendorId)
         {
             var vendorBalance = await _unitOfWork.Vendors.GetVendorBalanceAsync(vendorId);

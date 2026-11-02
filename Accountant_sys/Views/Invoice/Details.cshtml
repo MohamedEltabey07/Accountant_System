@@ -1,6 +1,8 @@
 @model BLL.DTOs.Invoice.OutGoingData.InvoiceDto
 @using DAL.Enums
 @using BLL.DTOs.CreditNote.OutGoingData
+@using BLL.DTOs.Product.OutGoingData
+@using BLL.DTOs.Inventory.OutGoingData
 @{
     var isDraft = Model.Status == InvoiceStatus.Draft;
     var isPosted = Model.Status == InvoiceStatus.Posted;
@@ -12,6 +14,14 @@
     var returnedQuantities = ViewBag.ReturnedQuantities as Dictionary<int, decimal> ?? new Dictionary<int, decimal>();
     var creditNotes = ViewBag.CreditNotes as List<CreditNoteDto> ?? new List<CreditNoteDto>();
     var totalReturnedAmount = (decimal)(ViewBag.TotalReturnedAmount ?? 0m);
+
+    // Maritime supply: every ACTIVE catalog product is selectable; each row's
+    // supply source (freezer or not) is decided per item. Freezer balances are
+    // used for the live availability hints on draft orders.
+    var productOptions = isMaritime
+        ? (ViewBag.ProductOptions as List<ProductDto> ?? new List<ProductDto>())
+        : new List<ProductDto>();
+    var freezerBalances = ViewBag.FreezerBalances as Dictionary<int, StockBalanceDto> ?? new Dictionary<int, StockBalanceDto>();
 }
 
 @using BLL.Service
@@ -533,28 +543,70 @@ else if (isCancelled)
         <div class="card shadow-sm mb-4 border-primary d-print-none">
             <div class="card-header bg-primary text-white py-2">
                 <h6 class="card-title mb-0">
-                    <i class="bi bi-plus-circle me-1"></i> إضافة صنف جديد للمسودة
+                    <i class="bi bi-plus-circle me-1"></i> @(isMaritime ? "إضافة صنف جديد لامر التوريد" : "إضافة صنف جديد للمسودة")
                 </h6>
             </div>
             <div class="card-body">
                 <form asp-action="AddItem" method="post" class="row g-2 align-items-end">
                     <input type="hidden" name="InvoiceId" value="@Model.Id" />
 
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold">@(isMaritime ? "صنف السمك المجمد" : "الصنف / المنتج") <span class="text-danger">*</span></label>
-                        <select name="ProductId" class="form-select form-select-sm" asp-items="ViewBag.Products" required>
-                            <option value="">-- اختر الصنف من المخزن --</option>
-                        </select>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">@(isMaritime ? "الصنف" : "الصنف / المنتج") <span class="text-danger">*</span></label>
+                        @if (isMaritime)
+                        {
+                            <select name="ProductId" id="maritimeProductSelect" class="form-select form-select-sm" required>
+                                <option value="">-- اختر الصنف --</option>
+                                @foreach (var p in productOptions)
+                                {
+                                    freezerBalances.TryGetValue(p.Id, out var bal);
+                                    var frozen = p.Category == ProductCategory.FrozenFish;
+                                    var availableKg = frozen ? bal?.AvailableKg ?? 0m : 0m;
+                                    var perCarton = p.DefaultCartonWeightKg ?? 0m;
+                                    <option value="@p.Id"
+                                            data-frozen="@(frozen ? "1" : "0")"
+                                            data-available-kg="@availableKg.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-per-carton="@perCarton.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-price="@p.MaritimePricePerKg?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)">
+                                        @p.Name@(frozen ? " — مجمد" : " — عادي")@(frozen ? $" (متاح: {availableKg:N3} كجم)" : "")
+                                    </option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <select name="ProductId" class="form-select form-select-sm" asp-items="ViewBag.Products" required>
+                                <option value="">-- اختر الصنف من المخزن --</option>
+                            </select>
+                        }
                     </div>
 
                     <div class="col-md-2">
                         <label class="form-label small fw-bold">@(isMaritime ? "الوزن المطلوب (كجم)" : "الكمية") <span class="text-danger">*</span></label>
-                        <input type="number" step="0.001" min="0.001" name="Quantity" class="form-control form-control-sm font-tabular" value="1" required />
+                        <input type="number" step="0.001" min="0.001" name="Quantity" id="itemQuantityInput" class="form-control form-control-sm font-tabular" value="1" required />
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label small fw-bold">@(isMaritime ? "سعر الكجم (ج.م)" : "سعر الوحدة (ج.م)") <small class="text-muted fw-normal">(افتراضي من الدليل)</small></label>
-                        <input type="number" step="0.01" min="0" name="UnitPrice" class="form-control form-control-sm font-tabular" placeholder="سعر الصنف الافتراضي" />
+                        <input type="number" step="0.01" min="0" name="UnitPrice" id="itemUnitPriceInput" class="form-control form-control-sm font-tabular" placeholder="سعر الصنف الافتراضي" />
+                    </div>
+
+                    <div class="col-md-2">
+                        @if (isMaritime)
+                        {
+                            <label class="form-label small fw-bold">بيان مصدر التوريد</label>
+                            <div class="form-check form-switch align-middle p-0">
+                                <input type="checkbox" class="form-check-input ms-0" id="isFromFreezerSwitch" name="IsFromFreezer" value="true" />
+                                <label class="form-check-label small fw-bold ms-1" for="isFromFreezerSwitch">
+                                    التوريد من الثلاجة
+                                </label>
+                            </div>
+                            <div class="small text-muted">مصدر البند يحدَّد لكل صنف على حدة</div>
+                        }
+                        else
+                        {
+                            <label class="form-label small fw-bold" style="visibility:hidden;">-</label>
+                            <span class="d-block small text-muted">&nbsp;</span>
+                        }
                     </div>
 
                     <div class="col-md-2">
@@ -567,6 +619,16 @@ else if (isCancelled)
                             <i class="bi bi-plus-lg"></i>
                         </button>
                     </div>
+
+                    @if (isMaritime)
+                    {
+                        <div class="col-12">
+                            <div id="freezerAvailabilityBox" class="small rounded-2 px-3 py-2 d-none border border-info bg-info-subtle">
+                                <span id="freezerAvailabilityText"></span>
+                                <span id="freezerRemainingHint" class="fw-bold"></span>
+                            </div>
+                        </div>
+                    }
                 </form>
             </div>
         </div>
@@ -614,10 +676,23 @@ else if (isCancelled)
                         <tr>
                             <td class="text-center text-muted fw-bold">@(itemIdx++)</td>
                             <td class="text-start fw-bold text-dark">
-                                <span>@(!string.IsNullOrWhiteSpace(item.ProductName) ? item.ProductName : "صنف سمك مجمد")</span>
+                                <span>@(!string.IsNullOrWhiteSpace(item.ProductName) ? item.ProductName : "صنف غير محدد")</span>
                                 @if (isMaritime)
                                 {
-                                    <span class="badge bg-info-subtle text-info border border-info-subtle ms-1 font-monospace" style="font-size:0.75rem;">مجمد</span>
+                                    @if (item.IsFromFreezer)
+                                    {
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:0.75rem;">من الثلاجة</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size:0.75rem;">خارج الثلاجة</span>
+                                    }
+                                    @if (isDraft && item.IsFromFreezer && freezerBalances.TryGetValue(item.ProductId, out var rowBalance))
+                                    {
+                                        <div class="small text-muted">
+                                            الرصيد بالثلاجة: @rowBalance.AvailableKg.ToString("N3") كجم
+                                        </div>
+                                    }
                                 }
                             </td>
                             <td class="text-center font-tabular fw-bold">
@@ -910,5 +985,105 @@ else if (isCancelled)
         window.addEventListener('afterprint', function () {
             document.body.classList.remove('thermal-print-mode');
         });
+
+        @if (isDraft && isMaritime)
+        {
+            <text>
+            // ============================================================
+            // Maritime draft: per-item supply source controls
+            // ============================================================
+            (function () {
+                const productSelect = document.getElementById('maritimeProductSelect');
+                const freezerSwitch = document.getElementById('isFromFreezerSwitch');
+                const availabilityBox = document.getElementById('freezerAvailabilityBox');
+                const availabilityText = document.getElementById('freezerAvailabilityText');
+                const remainingHint = document.getElementById('freezerRemainingHint');
+                const quantityInput = document.getElementById('itemQuantityInput');
+                const unitPriceInput = document.getElementById('itemUnitPriceInput');
+
+                function selectedOption() {
+                    return productSelect.options[productSelect.selectedIndex];
+                }
+
+                function parse(value) {
+                    const n = parseFloat(value);
+                    return isNaN(n) ? 0 : n;
+                }
+
+                function formatKg(value) {
+                    return value.toLocaleString('ar-EG', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                }
+
+                function refresh() {
+                    const option = selectedOption();
+                    if (!option || !option.value) {
+                        freezerSwitch.checked = false;
+                        freezerSwitch.disabled = true;
+                        availabilityBox.classList.add('d-none');
+                        availabilityText.textContent = '';
+                        remainingHint.textContent = '';
+                        remainingHint.className = 'fw-bold';
+                        return;
+                    }
+
+                    const frozen = option.dataset.frozen === '1';
+                    const availableKg = parse(option.dataset.availableKg);
+                    const perCarton = parse(option.dataset.perCarton);
+
+                    if (!frozen) {
+                        // Regular products are supplied from outside the freezer;
+                        // the option is disabled so it can never be inferred.
+                        freezerSwitch.checked = false;
+                        freezerSwitch.disabled = true;
+                        availabilityBox.classList.remove('d-none');
+                        availabilityBox.className = 'small rounded-2 px-3 py-2 border border-warning bg-warning-subtle';
+                        availabilityText.textContent = 'هذا صنف عادي: لا يوجد له رصيد بالثلاجة، وسيُحسب في الإجمالي بدون أي شطب من مخزون الثلاجات.';
+                        remainingHint.textContent = '';
+                        unitPriceInput.focus();
+                    } else {
+                        freezerSwitch.disabled = false;
+                        unitPriceInput.placeholder = '';
+
+                        // Default per-KG price from the product catalog (user can override).
+                        if (option.dataset.price && !unitPriceInput.value) {
+                            unitPriceInput.value = option.dataset.price;
+                        }
+
+                        const qty = parse(quantityInput.value);
+                        const fromFreezer = freezerSwitch.checked;
+
+                        if (fromFreezer) {
+                            availabilityBox.classList.remove('d-none');
+                            availabilityBox.className = 'small rounded-2 px-3 py-2 border border-info bg-info-subtle';
+                            availabilityText.textContent =
+                                'التوريد من الثلاجة — الرصيد المتاح حالياً: ' + formatKg(availableKg) + ' كجم'
+                                + (perCarton > 0 ? ' (' + formatKg(qty / perCarton) + ' كرتونة مطلوبة)' : '');
+
+                            if (qty > availableKg) {
+                                remainingHint.textContent = ' ⚠ الكمية المطلوبة أكبر من الكمية المتاحة في التلاجة.';
+                                remainingHint.className = 'fw-bold text-danger';
+                            } else {
+                                remainingHint.textContent = ' ✓ متاح — رصيد الثلاجة بعد التسليم: ' + formatKg(availableKg - qty) + ' كجم.';
+                                remainingHint.className = 'fw-bold text-success';
+                            }
+                        } else {
+                            availabilityBox.classList.remove('d-none');
+                            availabilityBox.className = 'small rounded-2 px-3 py-2 border border-info bg-info-subtle';
+                            availabilityText.textContent =
+                                'الصنف مجمد ويتوفر بالثلاجة (' + formatKg(availableKg) + ' كجم) — لكن السحب من الثلاجة غير مُحدَّد لهذا البند: لن يتم التحقق من المخزون ولن يُخصم شيئاً.';
+                            remainingHint.textContent = '';
+                        }
+                    }
+                }
+
+                productSelect.addEventListener('change', refresh);
+                freezerSwitch.addEventListener('change', refresh);
+                quantityInput.addEventListener('input', refresh);
+
+                // Re-run once when the form is reloaded (browser back navigation).
+                refresh();
+            })();
+            </text>
+        }
     </script>
 }

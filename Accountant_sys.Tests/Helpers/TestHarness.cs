@@ -30,6 +30,8 @@ namespace Accountant_sys.Tests.Helpers
         public CreditNoteService CreditNoteService { get; }
         public MaritimeCompanyService MaritimeService { get; }
         public CustomerService CustomerService { get; }
+        public VendorService VendorService { get; }
+        public ExpenseCategoryService ExpenseCategoryService { get; }
 
         public TestHarness()
         {
@@ -50,6 +52,8 @@ namespace Accountant_sys.Tests.Helpers
             CreditNoteService = new CreditNoteService(UnitOfWork, Mapper);
             CustomerService = new CustomerService(UnitOfWork, Mapper);
             MaritimeService = new MaritimeCompanyService(UnitOfWork, Mapper, CustomerService);
+            VendorService = new VendorService(UnitOfWork, Mapper);
+            ExpenseCategoryService = new ExpenseCategoryService(UnitOfWork, Mapper);
         }
 
         public Product SeedFrozenFish(string name, decimal defaultCartonWeightKg, decimal? maritimePricePerKg = null, decimal purchase = 20m)
@@ -114,7 +118,7 @@ namespace Accountant_sys.Tests.Helpers
             return productId;
         }
 
-        public async Task<int> CreateMaritimeDraftAsync(int companyId, int fishId, string orderNo, decimal qty)
+        public async Task<int> CreateMaritimeDraftAsync(int companyId, int fishId, string orderNo, decimal qty, bool isFromFreezer = true)
         {
             var draftId = await InvoiceService.CreateDraftInvoiceAsync(new CreateInvoiceDraftDto
             {
@@ -129,7 +133,10 @@ namespace Accountant_sys.Tests.Helpers
             {
                 InvoiceId = draftId,
                 ProductId = fishId,
-                Quantity = qty
+                Quantity = qty,
+                // Freezer-sourced by default: existing freezer deduction scenarios
+                // pass true; freezer-less supply scenarios pass false explicitly.
+                IsFromFreezer = isFromFreezer
             });
 
             return draftId;

@@ -137,6 +137,27 @@ namespace DAL.Repos
             var openInvoices = await _context.Invoices.Where(s => s.Status == InvoiceStatus.Posted).ToListAsync();
             return openInvoices;
         }
+
+        // Posted maritime supply orders ordered chronologically, with items
+        // (and their products) and the customer loaded for statement rendering.
+        public async Task<List<Invoice>> GetPostedMaritimeSupplyOrdersAsync(int? customerId)
+        {
+            var query = _context.Invoices
+                .AsNoTracking()
+                .Include(i => i.Customer)
+                .Include(i => i.Items)
+                    .ThenInclude(ii => ii.Product)
+                .Where(i => i.Type == InvoiceType.MaritimeSupply && i.Status == InvoiceStatus.Posted)
+                .AsQueryable();
+
+            if (customerId.HasValue)
+                query = query.Where(i => i.CustomerId == customerId.Value);
+
+            return await query
+                .OrderBy(i => i.TransactionDate)
+                .ThenBy(i => i.Id)
+                .ToListAsync();
+        }
     }
 }
 

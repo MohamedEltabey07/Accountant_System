@@ -72,6 +72,11 @@ namespace BLL.Service
             if (dto.ExpenseCategoryId == null || dto.ExpenseCategoryId <= 0)
                 throw new InvalidOperationException("يجب اختيار بند المصروف من القائمة.");
 
+            var category = await _unitOfWork.ExpenseCategoryRepo.GetByIdAsync(dto.ExpenseCategoryId.Value)
+                ?? throw new InvalidOperationException("بند المصروف المحدد غير موجود.");
+            if (!category.IsActive)
+                throw new InvalidOperationException($"بند المصروف ({category.Name}) غير نشط، لا يمكن استخدامه في عمليات جديدة.");
+
             dto.Category = CashCategory.Expense;
             dto.Direction = CashDirection.Out;
             dto.TransactionDate = dto.TransactionDate != default ? dto.TransactionDate : DateTime.Today;
