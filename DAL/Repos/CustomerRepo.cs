@@ -1,4 +1,4 @@
-﻿using DAL.AppDbContext;
+using DAL.AppDbContext;
 using DAL.Entities;
 using DAL.Enums;
 using DAL.IRepos;
@@ -106,6 +106,40 @@ namespace DAL.Repos
                    - creditNotes
                    - payments
                    + refunds;
+        }
+
+        /// <summary>
+        /// Opening-balance settlement tracking without a dedicated table:
+        /// overpayment is blocked, so the portion of every valid (non-reversed)
+        /// customer payment that is NOT allocated to an invoice can only have
+        /// settled the opening balance.
+        /// </summary>
+        public async Task<(decimal OpeningAmount, decimal Remaining, DateTime? EffectiveDate)> GetOpeningBalanceSettlementAsync(int customerId)
+        {
+            var opening = await _context.OpeningBalanceEntries
+                .Where(x => x.CustomerId == customerId && x.VendorId == null)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var openingAmount = opening.Sum(x => x.Amount);
+            if (openingAmount <= 0) return (0m, 0m, null);
+
+            var validPayments = _context.CashTransactions
+                .Where(t =>
+                    t.CustomerId == customerId &&
+                    t.Direction == CashDirection.In &&
+                    t.Category == CashCategory.CustomerPayment &&
+                    t.ReversalOfTransactionId == null &&
+                    !_context.CashTransactions.Any(r => r.ReversalOfTransactionId == t.Id));
+
+            var paidTotal = await validPayments.SumAsync(t => (decimal?)t.Amount) ?? 0m;
+            var allocatedToInvoices = await _context.PaymentAllocations
+                .Where(pa => validPayments.Any(t => t.Id == pa.CashTransactionId))
+                .SumAsync(pa => (decimal?)pa.Amount) ?? 0m;
+
+            var settled = Math.Max(0m, paidTotal - allocatedToInvoices);
+            var remaining = Math.Max(0m, openingAmount - settled);
+            return (openingAmount, remaining, opening.Min(x => x.EffectiveDate));
         }
 
         public async Task<Customer?> GetCustomerWithFinancialDetailsAsync(int customerId)

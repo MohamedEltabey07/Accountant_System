@@ -1,4 +1,4 @@
-@model BLL.DTOs.CreditNote.OutGoingData.CreditNoteDto
+﻿@model BLL.DTOs.CreditNote.OutGoingData.CreditNoteDto
 @{
     ViewData["Title"] = "إشعار مرتجع " + Model.CreditNoteNumber;
     var isDraft = Model.Status == DAL.Enums.CreditNoteStatus.Draft;
@@ -14,7 +14,7 @@
        ========================================================================== */
     @@page {
         size: A4 portrait;
-        margin: 10mm 12mm 12mm 12mm;
+        margin: 0 !important;
     }
 
     .credit-note-container {
@@ -61,7 +61,7 @@
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
-            padding: 0 !important;
+            padding: 8mm 10mm !important;
             margin: 0 !important;
         }
 

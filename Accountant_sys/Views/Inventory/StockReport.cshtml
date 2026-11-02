@@ -1,4 +1,4 @@
-@model List<BLL.DTOs.Inventory.OutGoingData.StockBalanceDto>
+﻿@model List<BLL.DTOs.Inventory.OutGoingData.StockBalanceDto>
 @{
     ViewData["Title"] = "تقرير رصيد المخزون الحالي";
 }
@@ -9,7 +9,7 @@
        ========================================================================== */
     @@page {
         size: A4 portrait;
-        margin: 10mm 12mm 12mm 12mm;
+        margin: 0 !important;
     }
 
     .report-sheet {
@@ -83,7 +83,7 @@
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
-            padding: 0 !important;
+            padding: 8mm 10mm !important;
             margin: 0 !important;
         }
 

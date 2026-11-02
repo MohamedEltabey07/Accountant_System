@@ -1,4 +1,4 @@
-@model BLL.DTOs.Cash.OutGoingData.CashTransactionDto
+﻿@model BLL.DTOs.Cash.OutGoingData.CashTransactionDto
 @using System.Linq
 @{
     var isVoucherIn = Model.Direction == DAL.Enums.CashDirection.In;
@@ -14,7 +14,7 @@
        ========================================================================== */
     @@page {
         size: A4 portrait;
-        margin: 10mm 12mm 12mm 12mm;
+        margin: 0 !important;
     }
 
     .voucher-sheet {
@@ -58,7 +58,7 @@
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
-            padding: 0 !important;
+            padding: 8mm 10mm !important;
             margin: 0 !important;
         }
 
@@ -193,36 +193,57 @@
         </div>
     </div>
 
+    @{
+        var allocatedSum = Model.Allocations?.Sum(a => a.Amount) ?? 0m;
+        var openingPart = (Model.Category == DAL.Enums.CashCategory.CustomerPayment || Model.Category == DAL.Enums.CashCategory.VendorPayment)
+                          ? Math.Max(0m, Model.Amount - allocatedSum) : 0m;
+        int rowNum = 1;
+    }
+
     <!-- Settled Invoices Allocations Table (If Any) -->
-    @if (Model.Allocations != null && Model.Allocations.Count > 0)
+    @if ((Model.Allocations != null && Model.Allocations.Count > 0) || openingPart > 0)
     {
         <div class="voucher-allocations-table mb-4">
             <h6 class="fw-bold text-dark mb-2">
-                <i class="bi bi-list-check text-primary me-1"></i> الفواتير والأوامر المسددة بموجب هذا السند:
+                <i class="bi bi-list-check text-primary me-1"></i> الفواتير والأوامر والمستحقات المسددة بموجب هذا السند:
             </h6>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle text-center mb-0">
                     <thead class="table-dark">
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th>رقم الفاتورة / أمر التوريد</th>
+                            <th>رقم الفاتورة / بيان السداد</th>
                             <th>المبلغ المسدد المخصص</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @for (int i = 0; i < Model.Allocations.Count; i++)
+                        @if (openingPart > 0)
                         {
-                            <tr>
-                                <td class="text-muted fw-bold">@(i + 1)</td>
-                                <td class="fw-bold font-monospace text-dark">@Model.Allocations[i].InvoiceNumber</td>
-                                <td class="fw-bold font-tabular text-success">@Model.Allocations[i].Amount.ToString("N2") ج.م</td>
+                            <tr class="table-warning">
+                                <td class="text-muted fw-bold">@(rowNum++)</td>
+                                <td class="fw-bold text-dark">
+                                    <span>رصيد افتتاحي سابق</span>
+                                    <span class="badge bg-warning text-dark ms-1">رصيد افتتاحي</span>
+                                </td>
+                                <td class="fw-bold font-tabular text-success">@openingPart.ToString("N2") ج.م</td>
                             </tr>
+                        }
+                        @if (Model.Allocations != null)
+                        {
+                            @for (int i = 0; i < Model.Allocations.Count; i++)
+                            {
+                                <tr>
+                                    <td class="text-muted fw-bold">@(rowNum++)</td>
+                                    <td class="fw-bold font-monospace text-dark">@Model.Allocations[i].InvoiceNumber</td>
+                                    <td class="fw-bold font-tabular text-success">@Model.Allocations[i].Amount.ToString("N2") ج.م</td>
+                                </tr>
+                            }
                         }
                     </tbody>
                     <tfoot class="table-light fw-bold">
                         <tr>
                             <td colspan="2" class="text-end">إجمالي التسويات المخصصة:</td>
-                            <td class="font-tabular text-success fs-6">@Model.Allocations.Sum(a => a.Amount).ToString("N2") ج.م</td>
+                            <td class="font-tabular text-success fs-6">@((allocatedSum + openingPart).ToString("N2")) ج.م</td>
                         </tr>
                     </tfoot>
                 </table>

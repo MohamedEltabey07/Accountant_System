@@ -1,4 +1,4 @@
-﻿using DAL.Entities;
+using DAL.Entities;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -11,5 +11,6 @@ namespace DAL.IRepos
         public Task<Vendor?> GetVendorWithFinancialDetailsAsync(int vendorId);
         public Task<bool> HasFinancialHistoryAsync(int vendorId);
         public Task<decimal> GetVendorBalanceAsync(int vendorId);
+        public Task<(decimal OpeningAmount, decimal Remaining, DateTime? EffectiveDate)> GetOpeningBalanceSettlementAsync(int vendorId);
     }
 }

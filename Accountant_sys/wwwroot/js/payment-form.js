@@ -165,8 +165,12 @@
             var total = parseFloat(invoice.totalAmount ?? invoice.TotalAmount) || 0;
             var paid = parseFloat(invoice.paidAmount ?? invoice.PaidAmount) || 0;
             var remaining = parseFloat(invoice.remainingBalance ?? invoice.RemainingBalance) || 0;
+            var isOpening = Number(invoiceId) === 0;
 
             var tr = document.createElement('tr');
+            if (isOpening) {
+                tr.classList.add('table-warning');
+            }
 
             var tdCheck = document.createElement('td');
             var check = document.createElement('input');
@@ -184,6 +188,13 @@
             strong.className = 'fw-bold';
             strong.textContent = invoiceNumber;
             tdNumber.appendChild(strong);
+
+            if (isOpening) {
+                var badge = document.createElement('span');
+                badge.className = 'badge bg-warning text-dark ms-1';
+                badge.textContent = 'رصيد افتتاحي';
+                tdNumber.appendChild(badge);
+            }
 
             var tdDate = document.createElement('td');
             var parsedDate = invoiceDate ? new Date(invoiceDate) : null;

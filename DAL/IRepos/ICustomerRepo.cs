@@ -1,4 +1,4 @@
-﻿using DAL.Entities;
+using DAL.Entities;
 using DAL.Enums;
 using System;
 using System.Collections.Generic;
@@ -14,5 +14,6 @@ namespace DAL.IRepos
         public Task<Customer?> GetCustomerWithFinancialDetailsAsync(int customerId);
         public Task<bool> HasFinancialHistoryAsync(int customerId);
         public Task<decimal> GetCustomerBalanceAsync(int customerId);
+        public Task<(decimal OpeningAmount, decimal Remaining, DateTime? EffectiveDate)> GetOpeningBalanceSettlementAsync(int customerId);
     }
 }

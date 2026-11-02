@@ -22,7 +22,7 @@
        ========================================================================== */
     @@page {
         size: A4 portrait;
-        margin: 10mm 12mm 12mm 12mm;
+        margin: 0 !important; /* Removes browser default headers (title/date) and footers (URL link) */
     }
 
     .invoice-container {
@@ -130,7 +130,7 @@
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
-            padding: 0 !important;
+            padding: 8mm 10mm !important;
             margin: 0 !important;
         }
 
@@ -339,7 +339,7 @@ else if (isCancelled)
             <!-- Merchant Brand Info (RTL Right) -->
             <div class="col-5">
                 <h3 class="fw-bold text-dark mb-1">
-                    <i class="bi bi-shield-check text-primary me-1"></i> مؤسسة التجارة والتوريدات
+                    <i class="bi bi-shield-check text-primary me-1"></i> شركة المصري للتجارة والتوريدات
                 </h3>
                 <div class="small text-muted">إدارة مبيعات الجملة، التجزئة، وتوريد الأسماك المجمدة</div>
                 <div class="small text-muted mt-1">
@@ -792,8 +792,8 @@ else if (isCancelled)
      ========================================================================== -->
 <div class="thermal-receipt-container">
     <div class="text-center mb-2">
-        <h5 class="fw-bold mb-0">مؤسسة التجارة والتوريدات</h5>
-        <div style="font-size: 10px;">نظام إدارة المبيعات والتوريدات</div>
+        <h5 class="fw-bold mb-0">شركة المصري للتجارة والتوريدات</h5>
+        <div style="font-size: 10px;">Elmasry Trading & Supplies | إدارة المبيعات</div>
         <div style="font-size: 9.5px;">س.ت: 104928 | ب.ض: 482-901-332</div>
         <div style="font-size: 9.5px;">هاتف: 01000000000</div>
     </div>

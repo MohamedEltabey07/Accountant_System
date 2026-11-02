@@ -58,7 +58,7 @@
                         <span class="fw-bold" id="idSummaryAmount">0.00</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                        <span class="text-muted">الموزَّع على الفواتير</span>
+                        <span class="text-muted">الموزَّع على المستحقات</span>
                         <span class="fw-bold" id="idSummaryAllocated">0.00</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
@@ -75,7 +75,7 @@
 
     <div class="card shadow-sm mt-3" id="idOpenSection">
         <div class="card-header bg-light fw-bold">
-            <i class="bi bi-collection me-2"></i> فواتير <span id="idPartyName" class="text-warning"></span> غير المسددة
+            <i class="bi bi-collection me-2"></i> المستحقات غير المسددة للمورد <span id="idPartyName" class="text-warning"></span> (فواتير مشتريات / رصيد افتتاحي)
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -83,7 +83,7 @@
                     <thead class="table-light">
                         <tr>
                             <th style="width:60px">تحديد</th>
-                            <th>رقم الفاتورة</th>
+                            <th>رقم الفاتورة / البيان</th>
                             <th>التاريخ</th>
                             <th>الإجمالي</th>
                             <th>المدفوع</th>
@@ -98,12 +98,12 @@
 
             <div class="text-center text-muted py-3 d-none" id="idLoadingState">
                 <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                جارِ تحميل فواتير المورد...
+                جارِ تحميل مستحقات المورد...
             </div>
 
             <div class="text-center text-muted py-4 d-none" id="idEmptyState">
                 <i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>
-                لا توجد فواتير مشتريات غير مسددة لهذا المورد — مستحقاته مسددة بالكامل حاليًا.
+                لا توجد مستحقات غير مسددة لهذا المورد — مستحقاته مسددة بالكامل حاليًا.
             </div>
         </div>
     </div>

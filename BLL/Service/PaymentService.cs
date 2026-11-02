@@ -18,6 +18,10 @@ namespace BLL.Service
         private readonly IMapper _mapper;
         private readonly IInvoiceService _invoiceService;
 
+        /// <summary>Synthetic row id used for the opening-balance line in the payment allocation table.</summary>
+        public const int OpeningBalanceRowId = 0;
+        public const string OpeningBalanceRowLabel = "رصيد افتتاحي سابق";
+
         public PaymentService(IUnitOfWork unitOfWork, IMapper mapper, IInvoiceService invoiceService)
         {
             _unitOfWork = unitOfWork;
@@ -69,6 +73,20 @@ namespace BLL.Service
                 if (allocation.AllocatedAmount <= 0)
                     throw new InvalidOperationException("مبلغ التوزيع لكل فاتورة يجب أن يكون أكبر من صفر.");
 
+                // InvoiceId == 0 => settlement of the customer's opening balance (رصيد افتتاحي).
+                if (allocation.InvoiceId == OpeningBalanceRowId)
+                {
+                    var (_, openingRemaining, _) = await _unitOfWork.CustomerRepo.GetOpeningBalanceSettlementAsync(dto.CustomerId);
+                    if (openingRemaining <= 0)
+                        throw new InvalidOperationException("لا يوجد رصيد افتتاحي مستحق على هذا العميل.");
+                    if (allocation.AllocatedAmount > openingRemaining)
+                    {
+                        throw new InvalidOperationException(
+                            $"مبلغ التوزيع ({allocation.AllocatedAmount:N2}) أكبر من المتبقي من الرصيد الافتتاحي ({openingRemaining:N2}).");
+                    }
+                    continue;
+                }
+
                 var invoice = await _unitOfWork.InvoiceRepo.GetByIdAsync(allocation.InvoiceId);
                 if (invoice == null)
                     throw new InvalidOperationException($"الفاتورة رقم {allocation.InvoiceId} غير موجودة.");
@@ -111,16 +129,21 @@ namespace BLL.Service
                 await _unitOfWork.CashTransactionRepo.AddAsync(cashTx);
                 await _unitOfWork.SaveChangesAsync();
 
-                var allocations = dto.Allocations.Select(a => new PaymentAllocation
-                {
-                    CashTransactionId = cashTx.Id,
-                    InvoiceId = a.InvoiceId,
-                    Amount = a.AllocatedAmount,
-                    CreatedAt = DateTime.UtcNow
-                }).ToList();
+                var allocations = dto.Allocations
+                    .Where(a => a.InvoiceId != OpeningBalanceRowId)
+                    .Select(a => new PaymentAllocation
+                    {
+                        CashTransactionId = cashTx.Id,
+                        InvoiceId = a.InvoiceId,
+                        Amount = a.AllocatedAmount,
+                        CreatedAt = DateTime.UtcNow
+                    }).ToList();
 
-                await _unitOfWork.PaymentAllocationRepo.AddRangeAsync(allocations);
-                await _unitOfWork.SaveChangesAsync();
+                if (allocations.Any())
+                {
+                    await _unitOfWork.PaymentAllocationRepo.AddRangeAsync(allocations);
+                    await _unitOfWork.SaveChangesAsync();
+                }
 
                 await _unitOfWork.CommitTransactionAsync();
                 return cashTx.Id;
@@ -169,6 +192,20 @@ namespace BLL.Service
                 if (allocation.AllocatedAmount <= 0)
                     throw new InvalidOperationException("مبلغ التوزيع لكل فاتورة يجب أن يكون أكبر من صفر.");
 
+                // InvoiceId == 0 => settlement of the vendor's opening balance (رصيد افتتاحي).
+                if (allocation.InvoiceId == OpeningBalanceRowId)
+                {
+                    var (_, openingRemaining, _) = await _unitOfWork.Vendors.GetOpeningBalanceSettlementAsync(dto.VendorId);
+                    if (openingRemaining <= 0)
+                        throw new InvalidOperationException("لا يوجد رصيد افتتاحي مستحق لهذا المورد.");
+                    if (allocation.AllocatedAmount > openingRemaining)
+                    {
+                        throw new InvalidOperationException(
+                            $"مبلغ التوزيع ({allocation.AllocatedAmount:N2}) أكبر من المتبقي من الرصيد الافتتاحي ({openingRemaining:N2}).");
+                    }
+                    continue;
+                }
+
                 var invoice = await _unitOfWork.InvoiceRepo.GetByIdAsync(allocation.InvoiceId);
                 if (invoice == null)
                     throw new InvalidOperationException($"الفاتورة رقم {allocation.InvoiceId} غير موجودة.");
@@ -204,16 +241,21 @@ namespace BLL.Service
                 await _unitOfWork.CashTransactionRepo.AddAsync(cashTx);
                 await _unitOfWork.SaveChangesAsync();
 
-                var allocations = dto.Allocations.Select(a => new PaymentAllocation
-                {
-                    CashTransactionId = cashTx.Id,
-                    InvoiceId = a.InvoiceId,
-                    Amount = a.AllocatedAmount,
-                    CreatedAt = DateTime.UtcNow
-                }).ToList();
+                var allocations = dto.Allocations
+                    .Where(a => a.InvoiceId != OpeningBalanceRowId)
+                    .Select(a => new PaymentAllocation
+                    {
+                        CashTransactionId = cashTx.Id,
+                        InvoiceId = a.InvoiceId,
+                        Amount = a.AllocatedAmount,
+                        CreatedAt = DateTime.UtcNow
+                    }).ToList();
 
-                await _unitOfWork.PaymentAllocationRepo.AddRangeAsync(allocations);
-                await _unitOfWork.SaveChangesAsync();
+                if (allocations.Any())
+                {
+                    await _unitOfWork.PaymentAllocationRepo.AddRangeAsync(allocations);
+                    await _unitOfWork.SaveChangesAsync();
+                }
 
                 await _unitOfWork.CommitTransactionAsync();
                 return cashTx.Id;
@@ -227,29 +269,24 @@ namespace BLL.Service
 
         public async Task<List<OpenInvoiceForPaymentDto>> GetCustomerOpenInvoicesAsync(int customerId)
         {
-            var openInovices = await _unitOfWork.InvoiceRepo.GetCustomerOpenInvoices(customerId);
             var resultOpenInvoicesList = new List<OpenInvoiceForPaymentDto>();
-            foreach(var openInvoice in openInovices)
-            {
-                var remaining = await _invoiceService.GetInvoiceRemainingBalanceAsync(openInvoice.Id);
-                if (remaining > 0)
-                {
-                    var mappedInvoices = _mapper.Map<OpenInvoiceForPaymentDto>(openInvoice);
-                    mappedInvoices.InvoiceId = openInvoice.Id;
-                    mappedInvoices.RemainingBalance = remaining;
-                    mappedInvoices.PaidAmount = openInvoice.TotalAmount - remaining;
-                    mappedInvoices.PaymentStatus = mappedInvoices.PaidAmount > 0 ?
-                    InvoicePaymentStatus.PartiallyPaid : InvoicePaymentStatus.Unpaid;
-                    resultOpenInvoicesList.Add(mappedInvoices);
-                }
-            }
-            return resultOpenInvoicesList;
-        }
 
-        public async Task<List<OpenInvoiceForPaymentDto>> GetVendorOpenInvoicesAsync(int vendorId)
-        {
-            var openInovices = await _unitOfWork.InvoiceRepo.GetVendorOpenInvoices(vendorId);
-            var resultOpenInvoicesList = new List<OpenInvoiceForPaymentDto>();
+            var (openingAmount, openingRemaining, effectiveDate) = await _unitOfWork.CustomerRepo.GetOpeningBalanceSettlementAsync(customerId);
+            if (openingRemaining > 0)
+            {
+                resultOpenInvoicesList.Add(new OpenInvoiceForPaymentDto
+                {
+                    InvoiceId = OpeningBalanceRowId,
+                    InvoiceNumber = OpeningBalanceRowLabel,
+                    TransactionDate = effectiveDate ?? DateTime.Today,
+                    TotalAmount = openingAmount,
+                    PaidAmount = openingAmount - openingRemaining,
+                    RemainingBalance = openingRemaining,
+                    PaymentStatus = openingRemaining < openingAmount ? InvoicePaymentStatus.PartiallyPaid : InvoicePaymentStatus.Unpaid
+                });
+            }
+
+            var openInovices = await _unitOfWork.InvoiceRepo.GetCustomerOpenInvoices(customerId);
             foreach (var openInvoice in openInovices)
             {
                 var remaining = await _invoiceService.GetInvoiceRemainingBalanceAsync(openInvoice.Id);
@@ -260,7 +297,44 @@ namespace BLL.Service
                     mappedInvoices.RemainingBalance = remaining;
                     mappedInvoices.PaidAmount = openInvoice.TotalAmount - remaining;
                     mappedInvoices.PaymentStatus = mappedInvoices.PaidAmount > 0 ?
-                        mappedInvoices.PaymentStatus = InvoicePaymentStatus.PartiallyPaid : InvoicePaymentStatus.Unpaid;
+                        InvoicePaymentStatus.PartiallyPaid : InvoicePaymentStatus.Unpaid;
+                    resultOpenInvoicesList.Add(mappedInvoices);
+                }
+            }
+            return resultOpenInvoicesList;
+        }
+
+        public async Task<List<OpenInvoiceForPaymentDto>> GetVendorOpenInvoicesAsync(int vendorId)
+        {
+            var resultOpenInvoicesList = new List<OpenInvoiceForPaymentDto>();
+
+            var (openingAmount, openingRemaining, effectiveDate) = await _unitOfWork.Vendors.GetOpeningBalanceSettlementAsync(vendorId);
+            if (openingRemaining > 0)
+            {
+                resultOpenInvoicesList.Add(new OpenInvoiceForPaymentDto
+                {
+                    InvoiceId = OpeningBalanceRowId,
+                    InvoiceNumber = OpeningBalanceRowLabel,
+                    TransactionDate = effectiveDate ?? DateTime.Today,
+                    TotalAmount = openingAmount,
+                    PaidAmount = openingAmount - openingRemaining,
+                    RemainingBalance = openingRemaining,
+                    PaymentStatus = openingRemaining < openingAmount ? InvoicePaymentStatus.PartiallyPaid : InvoicePaymentStatus.Unpaid
+                });
+            }
+
+            var openInovices = await _unitOfWork.InvoiceRepo.GetVendorOpenInvoices(vendorId);
+            foreach (var openInvoice in openInovices)
+            {
+                var remaining = await _invoiceService.GetInvoiceRemainingBalanceAsync(openInvoice.Id);
+                if (remaining > 0)
+                {
+                    var mappedInvoices = _mapper.Map<OpenInvoiceForPaymentDto>(openInvoice);
+                    mappedInvoices.InvoiceId = openInvoice.Id;
+                    mappedInvoices.RemainingBalance = remaining;
+                    mappedInvoices.PaidAmount = openInvoice.TotalAmount - remaining;
+                    mappedInvoices.PaymentStatus = mappedInvoices.PaidAmount > 0 ?
+                        InvoicePaymentStatus.PartiallyPaid : InvoicePaymentStatus.Unpaid;
                     resultOpenInvoicesList.Add(mappedInvoices);
                 }
             }

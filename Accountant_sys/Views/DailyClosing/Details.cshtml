@@ -1,4 +1,4 @@
-@model BLL.DTOs.DailyClosing.OutGoingData.DailyClosingDto
+﻿@model BLL.DTOs.DailyClosing.OutGoingData.DailyClosingDto
 @{
     ViewData["Title"] = $"تقرير إقفال يومية {Model.BusinessDate:yyyy-MM-dd}";
 }
@@ -11,7 +11,7 @@
        ========================================================================== */
     @@page {
         size: A4 portrait;
-        margin: 10mm 12mm 12mm 12mm;
+        margin: 0 !important;
     }
 
     .closing-sheet {
@@ -55,7 +55,7 @@
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
-            padding: 0 !important;
+            padding: 8mm 10mm !important;
             margin: 0 !important;
         }
 
