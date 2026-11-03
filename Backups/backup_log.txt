@@ -1,0 +1,6 @@
+﻿2026-11-01 04:58:59 [INFO] === Daily backup run started ===
+2026-11-01 04:58:59 [ERROR] Backup failed: Exception calling ".ctor" with "1" argument(s): "Keyword not supported: 'trust server certificate'."
+2026-11-01 04:59:35 [INFO] === Daily backup run started ===
+2026-11-01 04:59:36 [INFO] Backup created successfully: AccountantDb_backup_20261101_045936.bak (8.43 MB)
+2026-11-01 04:59:36 [INFO] Retention scan complete — 0 file(s) older than 30 day(s) removed.
+2026-11-01 04:59:36 [INFO] === Daily backup run finished successfully ===
