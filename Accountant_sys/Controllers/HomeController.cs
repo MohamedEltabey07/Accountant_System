@@ -27,6 +27,7 @@ namespace Accountant_sys.Controllers
             return View(metrics);
         }
 
+        [AllowAnonymous]
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {

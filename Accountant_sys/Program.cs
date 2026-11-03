@@ -26,7 +26,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 
-var builder = WebApplication.CreateBuilder(args);
+Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
 
 builder.Services.AddControllersWithViews(options =>
 {
@@ -110,6 +116,21 @@ builder.Services.AddScoped<IMaritimeCompanyService, MaritimeCompanyService>();
 builder.Services.AddScoped<IBackupService, BackupService>();
 
 var app = builder.Build();
+
+// Automatically apply any pending EF Core database migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbcontext>();
+        await db.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database.");
+    }
+}
 
 // Desktop-style startup: open the operator's browser automatically when the app
 // starts outside a development IDE (single-user machine, no external hosting).
