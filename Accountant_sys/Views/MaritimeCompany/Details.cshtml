@@ -222,11 +222,27 @@
                                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle">غير مدفوع</span>
                                     }
                                 </td>
-                                <td>
+                                <td class="d-flex gap-1 justify-content-center align-items-center">
                                     <a asp-controller="Invoice" asp-action="Details" asp-route-id="@order.Id"
                                        class="btn btn-sm btn-outline-primary" title="عرض أمر التوريد">
                                         <i class="bi bi-eye"></i>
                                     </a>
+                                    @if (order.Status == DAL.Enums.InvoiceStatus.Posted)
+                                    {
+                                        <a asp-controller="Invoice" asp-action="Amend" asp-route-id="@order.Id"
+                                           class="btn btn-sm btn-outline-warning" title="تصحيح أمر التوريد المرحّل">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    }
+                                    else if (order.Status == DAL.Enums.InvoiceStatus.Draft)
+                                    {
+                                        <form asp-controller="Invoice" asp-action="Delete" asp-route-id="@order.Id" method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="حذف المسودة"
+                                                    data-confirm="حذف المسودة بالكامل: ستُحذف هذه المسودة وكل بنودها ومصاريفها نهائياً من قاعدة البيانات، ولن يؤثر ذلك على المخزون أو الأرصدة المالية لأنها لم تُرحّل بعد. هل تريد المتابعة؟">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    }
                                 </td>
                             </tr>
                         }

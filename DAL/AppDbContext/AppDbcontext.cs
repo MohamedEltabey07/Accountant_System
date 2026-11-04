@@ -95,9 +95,16 @@ namespace DAL.AppDbContext
                 entity.Property(i => i.CancellationReason).HasMaxLength(500);
                 entity.Property(i => i.ExternalOrderNumber).HasMaxLength(100);
 
-                // Maritime supply orders: one external order number cannot be reused twice.
-                entity.HasIndex(i => i.ExternalOrderNumber)
-                      .IsUnique()
+                // Maritime supply orders: the EXTERNAL order number is unique per
+                // maritime company among ACTIVE orders only (Draft + Posted).
+                // Cancelled/voided orders release their number so a replacement
+                // order can reuse it; internal InvoiceNumber stays globally unique.
+                // The DB-level filtered UNIQUE index is created in the migration
+                // (IX_Invoices_Customer_ExternalOrderNumber_Active) so concurrent
+                // requests are protected by SQL Server; this model index is for
+                // query performance (the InMemory test provider ignores filters).
+                entity.HasIndex(i => new { i.CustomerId, i.ExternalOrderNumber })
+                      .HasDatabaseName("IX_Invoices_Customer_ExternalOrderNumber")
                       .HasFilter("[Type] = 4 AND [ExternalOrderNumber] IS NOT NULL");
 
                 // Relationship: Customer -> Invoices (Wholesale)
@@ -155,6 +162,45 @@ namespace DAL.AppDbContext
                       .WithMany(i => i.CreditNotes)
                       .HasForeignKey(cn => cn.OriginalInvoiceId)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ==========================================
+            // InvoiceAdditionalCharge Configuration
+            // ==========================================
+            modelBuilder.Entity<InvoiceAdditionalCharge>(entity =>
+            {
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.Description).HasMaxLength(200).IsRequired();
+                entity.Property(c => c.Notes).HasMaxLength(500);
+
+                entity.Property(c => c.Quantity).HasPrecision(18, 3);
+                entity.Property(c => c.UnitPrice).HasPrecision(18, 2);
+                entity.Property(c => c.Amount).HasPrecision(18, 2);
+
+                entity.HasOne(c => c.Invoice)
+                      .WithMany(i => i.AdditionalCharges)
+                      .HasForeignKey(c => c.InvoiceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ==========================================
+            // InvoiceAmendment Configuration (posted-order audit trail)
+            // ==========================================
+            modelBuilder.Entity<InvoiceAmendment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Reason).HasMaxLength(500).IsRequired();
+                entity.Property(a => a.AmendedByUserId).HasMaxLength(450);
+
+                entity.HasOne(a => a.Invoice)
+                      .WithMany(i => i.Amendments)
+                      .HasForeignKey(a => a.InvoiceId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(a => a.AmendedByUser)
+                      .WithMany()
+                      .HasForeignKey(a => a.AmendedByUserId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             // ==========================================

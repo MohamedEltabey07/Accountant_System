@@ -8,6 +8,7 @@ using BLL.IService;
 using DAL.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Security.Claims;
 
 namespace Accountant_sys.Controllers
 {
@@ -199,6 +200,140 @@ namespace Accountant_sys.Controllers
 
             return RedirectToAction(nameof(Details), new { id = invoiceId });
         }
+
+        // ==========================================
+        // ADD / UPDATE / REMOVE ADDITIONAL CHARGES (draft supply orders)
+        // ==========================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddCharge(AddInvoiceChargeDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["ErrorMessage"] = "بيانات المصروف غير صحيحة. تحقق من الاسم والقيمة.";
+                return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
+            }
+
+            try
+            {
+                await _invoiceService.AddChargeToDraftAsync(dto);
+                TempData["SuccessMessage"] = "تم إضافة المصروف وأُعيد حساب الإجمالي.";
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["ErrorMessage"] = ex.Message;
+            }
+
+            return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateCharge(UpdateInvoiceChargeDto dto, int invoiceId)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["ErrorMessage"] = "بيانات المصروف غير صحيحة. تحقق من الاسم والقيمة.";
+                return RedirectToAction(nameof(Details), new { id = invoiceId });
+            }
+
+            var result = await _invoiceService.UpdateDraftChargeAsync(dto);
+            TempData[result ? "SuccessMessage" : "ErrorMessage"] = result
+                ? "تم تعديل المصروف وإعادة حساب الإجمالي."
+                : "تعذر تعديل المصروف. تأكد من أن الفاتورة مسودة.";
+
+            return RedirectToAction(nameof(Details), new { id = invoiceId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RemoveCharge(int chargeId, int invoiceId)
+        {
+            var result = await _invoiceService.RemoveChargeFromDraftAsync(chargeId);
+            TempData[result ? "SuccessMessage" : "ErrorMessage"] = result
+                ? "تم حذف المصروف وإعادة حساب الإجمالي."
+                : "تعذر حذف المصروف. تأكد من أن الفاتورة مسودة.";
+
+            return RedirectToAction(nameof(Details), new { id = invoiceId });
+        }
+
+        // ==========================================
+        // DELETE DRAFT SUPPLY ORDER (safe physical delete)
+        // ==========================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            try
+            {
+                var result = await _invoiceService.DeleteDraftInvoiceAsync(id);
+                if (result)
+                {
+                    TempData["SuccessMessage"] = "تم حذف المسودة نهائياً (لم تؤثر على المخزون أو الحسابات ولم يصرف لها رقم أمر توريد).";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                TempData["ErrorMessage"] = "تعذر حذف المسودة: الفاتورة غير موجودة أو ليست مسودة.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["ErrorMessage"] = ex.Message;
+                return RedirectToAction(nameof(Details), new { id });
+            }
+        }
+
+        // ==========================================
+        // AMEND POSTED MARITIME SUPPLY ORDER (controlled correction)
+        // ==========================================
+        [HttpGet]
+        public async Task<IActionResult> Amend(int id)
+        {
+            var invoice = await _invoiceService.GetInvoiceByIdAsync(id);
+            if (invoice == null) return NotFound();
+
+            if (invoice.Type != InvoiceType.MaritimeSupply || invoice.Status != InvoiceStatus.Posted)
+            {
+                TempData["ErrorMessage"] = "التصحيح المتحكم فيه متاح فقط لأوامر التوريد البحرية المرحلة.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            await PrepareProductSelectList(invoice.Type);
+            return View(invoice);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Amend(AmendPostedMaritimeInvoiceDto dto)
+        {
+            var invoiceFromService = await _invoiceService.GetInvoiceByIdAsync(dto.InvoiceId);
+            if (invoiceFromService == null) return NotFound();
+
+            if (invoiceFromService.Type != InvoiceType.MaritimeSupply || invoiceFromService.Status != InvoiceStatus.Posted)
+            {
+                TempData["ErrorMessage"] = "التصحيح المتحكم فيه متاح فقط لأوامر التوريد البحرية المرحلة.";
+                return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
+            }
+
+            try
+            {
+                var result = await _invoiceService.AmendPostedMaritimeInvoiceAsync(dto, CurrentUserId());
+                if (result)
+                {
+                    TempData["SuccessMessage"] = "تم تنفيذ التصحيح: أُعيد حساب الإجمالي، وسُجّل تعديل المخزون والرصيد وسجل التدقيق (لن يختفي أي سداد أو مستند).";
+                    return RedirectToAction(nameof(Details), new { id = dto.InvoiceId });
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+
+            await PrepareProductSelectList(invoiceFromService.Type);
+            return View(invoiceFromService);
+        }
+
+        private string? CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         // ==========================================
         // POST INVOICE (freezes financial snapshot)

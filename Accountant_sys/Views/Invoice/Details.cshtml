@@ -279,11 +279,22 @@
                 </a>
             }
 
-            @if (Model.PaidAmount == 0)
+            @if (Model.PaidAmount == 0 && Model.Type != InvoiceType.MaritimeSupply)
             {
                 <a asp-action="Cancel" asp-route-id="@Model.Id" class="btn btn-outline-danger btn-sm"
                    data-confirm="هل تريد بالتأكيد إلغاء هذه الفاتورة؟ لن يمكنك التراجع عن ذلك.">
                     <i class="bi bi-x-circle me-1"></i> إلغاء الفاتورة
+                </a>
+            }
+
+            @if (Model.Type == InvoiceType.MaritimeSupply)
+            {
+                <a asp-action="Amend" asp-route-id="@Model.Id" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-pencil-square me-1"></i> تصحيح أمر التوريد
+                </a>
+                <a asp-action="Cancel" asp-route-id="@Model.Id" class="btn btn-outline-danger btn-sm"
+                   data-confirm="حذف/إلغاء أمر التوريد: سيُلغى الأمر نهائياً مع تسجيل سبب الإلغاء، وسَتَعُود الكميات المسحوبة إلى مخزون الثلاجة بحركات عكسية، وستبقى أي سدادات سابقة رصيداً في حساب الشركة (بدون اختفاء أي مبلغ). هل تريد المتابعة؟">
+                    <i class="bi bi-trash3 me-1"></i> حذف/إلغاء الأمر
                 </a>
             }
         }
@@ -301,6 +312,13 @@
                 <button type="button" class="btn btn-success fw-bold shadow-sm" @(Model.Items.Count == 0 ? "disabled" : "")
                         data-confirm="هل أنت متأكد من ترحيل هذه الفاتورة؟ سيتم اعتماد الأسعار والكميات وتحديث الأرصدة المالية والخصم من المخزون.">
                     <i class="bi bi-check2-all me-1"></i> ترحيل واعتماد الفاتورة
+                </button>
+            </form>
+
+            <form asp-action="Delete" asp-route-id="@Model.Id" method="post" class="d-inline">
+                <button type="button" class="btn btn-outline-danger fw-bold"
+                        data-confirm="حذف المسودة بالكامل: ستُحذف هذه المسودة وكل بنودها ومصاريفها نهائياً من قاعدة البيانات، ولن يؤثر ذلك على المخزون أو الأرصدة المالية لأن المسودة لم تُرحّل بعد. هل تريد المتابعة؟">
+                    <i class="bi bi-trash3 me-1"></i> حذف الطلب
                 </button>
             </form>
         }
@@ -328,6 +346,23 @@ else if (isCancelled)
         </div>
     </div>
 }
+
+        <!-- Amendment history (posted maritime supply orders) -->
+        @if (isPosted && isMaritime && Model.Amendments.Any())
+        {
+            <div class="alert alert-info d-print-none" role="alert">
+                <strong class="d-block mb-1"><i class="bi bi-clock-history me-1"></i> سجل تصحيحات أمر التوريد:</strong>
+                <ul class="mb-0 small">
+                    @foreach (var amendment in Model.Amendments)
+                    {
+                        <li>
+                            بتاريخ @amendment.AmendedAtUtc.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt") —
+                            السبب: <strong>@amendment.Reason</strong>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
 
 <!-- ==========================================================================
      1. THE OFFICIAL A4 PRINTABLE INVOICE SHEET
@@ -634,6 +669,114 @@ else if (isCancelled)
         </div>
     }
 
+    @if (isMaritime && isDraft)
+    {
+        // ============================================================
+        // Additional charges & costs on the supply order
+        // (billable charges flow into the final order total;
+        //  internal charges are cost tracking only and never billed;
+        //  NO cash movement is created for adding a charge)
+        // ============================================================
+        var billableChargesTotal = Model.AdditionalCharges.Where(c => c.IsBillableToCompany).Sum(c => c.Amount);
+        var internalChargesTotal = Model.AdditionalCharges.Where(c => !c.IsBillableToCompany).Sum(c => c.Amount);
+        <div class="card shadow-sm mb-4 border-secondary d-print-none">
+            <div class="card-header bg-secondary bg-opacity-75 text-white py-2 d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0"><i class="bi bi-receipt-cutoff me-1"></i> المصاريف والتكاليف الإضافية</h6>
+                <span class="badge bg-light text-dark">@billableChargesTotal.ToString("N2") ج.م على الشركة + @internalChargesTotal.ToString("N2") ج.م تكلفة داخلية</span>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-bordered text-center mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-start" style="width:30%;">اسم المصروف</th>
+                                <th style="width:12%;">الكمية</th>
+                                <th style="width:14%;">سعر الوحدة</th>
+                                <th style="width:14%;">القيمة (ج.م)</th>
+                                <th style="width:18%;">الاحتساب</th>
+                                <th style="width:12%;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Model.AdditionalCharges.Any())
+                            {
+                                <tr><td colspan="6" class="text-muted py-2">لا توجد مصاريف إضافية على هذا أمر التوريد.</td></tr>
+                            }
+                            @foreach (var charge in Model.AdditionalCharges)
+                            {
+                                <tr>
+                                    <td class="text-start fw-bold">
+                                        @charge.Description
+                                        @if (!string.IsNullOrWhiteSpace(charge.Notes))
+                                        {
+                                            <div class="small text-muted">@charge.Notes</div>
+                                        }
+                                    </td>
+                                    <td class="font-tabular">@(charge.Quantity?.ToString("0.###") ?? "-")</td>
+                                    <td class="font-tabular">@(charge.UnitPrice?.ToString("N2") ?? "-")</td>
+                                    <td class="font-tabular fw-bold">@charge.Amount.ToString("N2")</td>
+                                    <td>
+                                        @if (charge.IsBillableToCompany)
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">محتسب على الشركة</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">تكلفة داخلية (غير محتسبة)</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <form asp-action="RemoveCharge" method="post" class="d-inline" asp-route-invoiceId="@Model.Id">
+                                            <input type="hidden" name="chargeId" value="@charge.Id" />
+                                            <input type="hidden" name="invoiceId" value="@Model.Id" />
+                                            <button type="button" class="btn btn-sm btn-outline-danger p-1" title="حذف المصروف"
+                                                    data-confirm="هل تريد حذف هذا المصروف من أمر التوريد؟">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <form asp-action="AddCharge" method="post" class="row g-2 align-items-end">
+                    <input type="hidden" name="InvoiceId" value="@Model.Id" />
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">اسم المصروف <span class="text-danger">*</span></label>
+                        <input type="text" name="Description" class="form-control form-control-sm" maxlength="200" placeholder="مثال: صناديق ثلج، كراتين" required />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">الكمية</label>
+                        <input type="number" step="0.001" min="0" name="Quantity" class="form-control form-control-sm font-tabular" placeholder="اختياري" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">سعر الوحدة</label>
+                        <input type="number" step="0.01" min="0" name="UnitPrice" class="form-control form-control-sm font-tabular" placeholder="اختياري" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">قيمة مباشرة (ج.م)</label>
+                        <input type="number" step="0.01" min="0" name="Amount" class="form-control form-control-sm font-tabular" placeholder="إن لم تُدخل الكمية والسعر" />
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" name="IsBillableToCompany" value="true" checked />
+                            <label class="form-check-label small">محتسب على الشركة</label>
+                        </div>
+                        <input type="text" name="Notes" class="form-control form-control-sm mt-1" maxlength="500" placeholder="ملاحظات (اختياري)" />
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-secondary btn-sm w-100"><i class="bi bi-plus-lg"></i></button>
+                    </div>
+                    <div class="col-12 small text-muted">
+                        أدخل الكمية وسعر الوحدة معاً لتُحسب القيمة تلقائياً على الخادم، أو أدخل جملة القيمة المباشرة. المصروفات المحتسبة على الشركة تُضاف إلى إجمالي أمر التوريد وتؤثر على رصيد الشركة؛ وإذا ادفع التاجر ثمناً لصناديق أو كراتين فعلياً فسجّل ذلك كمصروف نقدي عادي من صفحة المصاريف — إدخال المصروف هنا لا يُنشئ أي حركة نقدية.
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+
     <!-- Line Items Table (A4 Standard) -->
     <div class="invoice-table-wrapper mb-4">
         <table class="table-invoice">
@@ -732,6 +875,44 @@ else if (isCancelled)
         </table>
     </div>
 
+    <!-- Additional Charges Table (print-visible for maritime supply orders) -->
+    @if (isMaritime && Model.AdditionalCharges.Any())
+    {
+        <div class="invoice-table-wrapper mb-4">
+            <table class="table-invoice">
+                <thead>
+                    <tr>
+                        <th class="text-start">المصاريف والتكاليف الإضافية</th>
+                        <th style="width: 90px;" class="text-center">الكمية</th>
+                        <th style="width: 100px;" class="text-center">سعر الوحدة</th>
+                        <th style="width: 110px;" class="text-center">القيمة</th>
+                        <th style="width: 110px;" class="text-center">الاحتساب</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var charge in Model.AdditionalCharges)
+                    {
+                        <tr>
+                            <td class="text-start text-dark">
+                                @charge.Description
+                                @if (!string.IsNullOrWhiteSpace(charge.Notes))
+                                {
+                                    <div class="small text-muted">@charge.Notes</div>
+                                }
+                            </td>
+                            <td class="text-center font-tabular">@(charge.Quantity?.ToString("0.###") ?? "-")</td>
+                            <td class="text-center font-tabular">@(charge.UnitPrice?.ToString("N2") ?? "-")</td>
+                            <td class="text-center font-tabular fw-bold text-dark">@charge.Amount.ToString("N2")</td>
+                            <td class="text-center">
+                                @(charge.IsBillableToCompany ? "محتسب على الشركة" : "تكلفة داخلية")
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
     <!-- Credit Notes Linked Sub-Table (If Returns Exist) -->
     @if (isPosted && creditNotes.Any())
     {
@@ -812,6 +993,21 @@ else if (isCancelled)
                             <span>إجمالي المرتجعات:</span>
                             <span class="font-tabular">-@totalReturnedAmount.ToString("N2") ج.م</span>
                         </div>
+                    }
+
+                    @if (isMaritime && Model.BillableChargesTotal > 0)
+                    {
+                        <div class="d-flex justify-content-between mb-2 text-secondary">
+                            <span>مصاريف إضافية محتسبة على الشركة:</span>
+                            <span class="font-tabular">+@Model.BillableChargesTotal.ToString("N2") ج.م</span>
+                        </div>
+                        @if (Model.InternalChargesTotal > 0)
+                        {
+                            <div class="d-flex justify-content-between mb-2 text-muted small">
+                                <span>تكاليف داخلية (غير محتسبة على الشركة):</span>
+                                <span class="font-tabular">@Model.InternalChargesTotal.ToString("N2") ج.م</span>
+                            </div>
+                        }
                     }
 
                     <div class="d-flex justify-content-between py-2 border-top border-bottom border-2 my-2 fs-5 fw-bold text-dark">
@@ -949,6 +1145,20 @@ else if (isCancelled)
                 <span class="font-tabular">-@((Model.ItemDiscountTotal + Model.InvoiceDiscountAmount).ToString("N2")) ج.م</span>
             </div>
         }
+        @if (isMaritime && Model.BillableChargesTotal > 0)
+        {
+            <div class="d-flex justify-content-between mb-1">
+                <span>مصاريف إضافية:</span>
+                <span class="font-tabular">+@Model.BillableChargesTotal.ToString("N2") ج.م</span>
+            </div>
+            @foreach (var charge in Model.AdditionalCharges.Where(c => c.IsBillableToCompany))
+            {
+                <div class="d-flex justify-content-between" style="font-size: 9px;">
+                    <span class="text-muted">• @charge.Description</span>
+                    <span class="font-tabular">@charge.Amount.ToString("N2")</span>
+                </div>
+            }
+        }
         <div class="d-flex justify-content-between my-1 pt-1 border-top border-dark" style="font-size: 12px;">
             <strong>الصافي المستحق:</strong>
             <strong class="font-tabular">@Model.TotalAmount.ToString("N2") ج.م</strong>
@@ -1039,7 +1249,9 @@ else if (isCancelled)
                         availabilityBox.className = 'small rounded-2 px-3 py-2 border border-warning bg-warning-subtle';
                         availabilityText.textContent = 'هذا صنف عادي: لا يوجد له رصيد بالثلاجة، وسيُحسب في الإجمالي بدون أي شطب من مخزون الثلاجات.';
                         remainingHint.textContent = '';
-                        unitPriceInput.focus();
+                        // NOTE: intentionally NO focus() here — the availability panel
+                        // refreshes on every KG keystroke; stealing the cursor prevented
+                        // normal multi-digit weight entry (e.g. 125.500).
                     } else {
                         freezerSwitch.disabled = false;
                         unitPriceInput.placeholder = '';

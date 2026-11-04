@@ -50,5 +50,25 @@ namespace BLL.DTOs.Invoice.OutGoingData
         public string? CancellationReason { get; set; }
 
         public List<InvoiceItemDto> Items { get; set; } = new List<InvoiceItemDto>();
+
+        // Order-level additional charges (maritime supply orders).
+        public List<InvoiceChargeDto> AdditionalCharges { get; set; } = new List<InvoiceChargeDto>();
+
+        // Sum of billable charges (already included in TotalAmount).
+        public decimal BillableChargesTotal { get; set; }
+
+        // Sum of internal-only charges (tracked cost, never billed to the company).
+        public decimal InternalChargesTotal { get; set; }
+
+        // Audit trail of the controlled amendments applied to this posted order.
+        public List<InvoiceAmendmentDto> Amendments { get; set; } = new List<InvoiceAmendmentDto>();
+    }
+
+    public class InvoiceAmendmentDto
+    {
+        public int Id { get; set; }
+        public DateTime AmendedAtUtc { get; set; }
+        public string? AmendedByUserId { get; set; }
+        public string Reason { get; set; } = string.Empty;
     }
 }

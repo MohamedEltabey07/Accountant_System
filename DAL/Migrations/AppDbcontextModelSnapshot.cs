@@ -439,18 +439,104 @@ namespace DAL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("ExternalOrderNumber")
-                        .IsUnique()
-                        .HasFilter("[Type] = 4 AND [ExternalOrderNumber] IS NOT NULL");
-
                     b.HasIndex("InvoiceNumber")
                         .IsUnique();
 
                     b.HasIndex("VendorId");
 
+                    b.HasIndex("CustomerId", "ExternalOrderNumber")
+                        .HasDatabaseName("IX_Invoices_Customer_ExternalOrderNumber")
+                        .HasFilter("[Type] = 4 AND [ExternalOrderNumber] IS NOT NULL");
+
                     b.ToTable("Invoices");
+                });
+
+            modelBuilder.Entity("DAL.Entities.InvoiceAdditionalCharge", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsBillableToCompany")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal?>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoiceAdditionalCharge");
+                });
+
+            modelBuilder.Entity("DAL.Entities.InvoiceAmendment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("AmendedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AmendedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AmendedByUserId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoiceAmendment");
                 });
 
             modelBuilder.Entity("DAL.Entities.InvoiceItem", b =>
@@ -952,6 +1038,35 @@ namespace DAL.Migrations
                     b.Navigation("Vendor");
                 });
 
+            modelBuilder.Entity("DAL.Entities.InvoiceAdditionalCharge", b =>
+                {
+                    b.HasOne("DAL.Entities.Invoice", "Invoice")
+                        .WithMany("AdditionalCharges")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("DAL.Entities.InvoiceAmendment", b =>
+                {
+                    b.HasOne("DAL.Entities.AppUser", "AmendedByUser")
+                        .WithMany()
+                        .HasForeignKey("AmendedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DAL.Entities.Invoice", "Invoice")
+                        .WithMany("Amendments")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AmendedByUser");
+
+                    b.Navigation("Invoice");
+                });
+
             modelBuilder.Entity("DAL.Entities.InvoiceItem", b =>
                 {
                     b.HasOne("DAL.Entities.Invoice", "Invoice")
@@ -1125,6 +1240,10 @@ namespace DAL.Migrations
 
             modelBuilder.Entity("DAL.Entities.Invoice", b =>
                 {
+                    b.Navigation("AdditionalCharges");
+
+                    b.Navigation("Amendments");
+
                     b.Navigation("CreditNotes");
 
                     b.Navigation("Items");

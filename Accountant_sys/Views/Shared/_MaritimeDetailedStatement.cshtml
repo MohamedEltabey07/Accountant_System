@@ -331,6 +331,63 @@
                 </table>
             </div>
 
+            @if (order.HasCharges)
+            {
+                <!-- Order Additional Charges -->
+                <div class="table-responsive">
+                    <table class="table-statement" style="table-layout: fixed;">
+                        <thead>
+                            <tr style="background-color:#475569 !important; border-color:#475569;">
+                                <th style="width: 35px;">#</th>
+                                <th class="text-start">مصروف / تكلفة إضافية</th>
+                                <th style="width: 80px;">الكمية</th>
+                                <th style="width: 90px;">سعر الوحدة</th>
+                                <th style="width: 100px;">القيمة (ج.م)</th>
+                                <th style="width: 130px;">محتسب على الشركة؟</th>
+                                <th class="text-start">ملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var chargeIdx = 1;
+                                foreach (var charge in order.Charges)
+                                {
+                                    <tr>
+                                        <td class="text-center text-muted fw-bold">@(chargeIdx++)</td>
+                                        <td class="text-start fw-bold text-dark">@charge.Description</td>
+                                        <td class="text-center font-tabular">@(charge.Quantity.HasValue ? charge.Quantity.Value.ToString("N3") : "-")</td>
+                                        <td class="text-center font-tabular">@(charge.UnitPrice.HasValue ? charge.UnitPrice.Value.ToString("N2") : "-")</td>
+                                        <td class="text-center font-tabular fw-bold">@charge.Amount.ToString("N2")</td>
+                                        <td class="text-center">
+                                            @if (charge.IsBillableToCompany)
+                                            {
+                                                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" style="font-size: 0.72rem;">محتسب على الشركة</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle" style="font-size: 0.72rem;">مصروف داخلي</span>
+                                            }
+                                        </td>
+                                        <td class="text-start small text-muted">@(string.IsNullOrWhiteSpace(charge.Notes) ? "-" : charge.Notes)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4" class="text-end">إجمالي المحتسب على الشركة / إجمالي المصاريف:</td>
+                                <td class="text-center">
+                                    <span class="fw-bold text-danger font-tabular">@order.BillableChargesTotal.ToString("N2")</span>
+                                    <span class="mx-1">/</span>
+                                    <span class="fw-bold font-tabular">@((order.BillableChargesTotal + order.InternalChargesTotal).ToString("N2"))</span>
+                                </td>
+                                <td colspan="2" class="text-muted small text-end">المحتسب على الشركة يُدرج في الإجمالي المذكور أعلاه</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            }
+
             <!-- Order Total: the EXTERNAL number must appear next to every order total -->
             <div class="order-block-footer d-flex justify-content-between align-items-center">
                 <span>إجمالي عدد البنود: @order.Items.Count</span>

@@ -22,6 +22,8 @@ namespace DAL.Repos
                 .Include(i => i.Vendor)
                 .Include(i => i.Items)
                     .ThenInclude(ii => ii.Product)
+                .Include(i => i.AdditionalCharges)
+                .Include(i => i.Amendments)
                 .FirstOrDefaultAsync(i => i.Id == invoiceId);
         }
 
@@ -30,6 +32,8 @@ namespace DAL.Repos
             return await _context.InvoiceItems
                 .Include(ii => ii.Invoice)
                     .ThenInclude(i => i.Items)
+                .Include(ii => ii.Invoice)
+                    .ThenInclude(i => i.AdditionalCharges)
                 .FirstOrDefaultAsync(ii => ii.Id == itemId);
         }
 
@@ -46,6 +50,7 @@ namespace DAL.Repos
             var query = _context.Invoices
                 .Include(i => i.Customer)
                 .Include(i => i.Vendor)
+                .Include(i => i.AdditionalCharges)
                 .AsQueryable();
 
             if (type.HasValue)
@@ -147,6 +152,7 @@ namespace DAL.Repos
                 .Include(i => i.Customer)
                 .Include(i => i.Items)
                     .ThenInclude(ii => ii.Product)
+                .Include(i => i.AdditionalCharges)
                 .Where(i => i.Type == InvoiceType.MaritimeSupply && i.Status == InvoiceStatus.Posted)
                 .AsQueryable();
 
@@ -157,6 +163,30 @@ namespace DAL.Repos
                 .OrderBy(i => i.TransactionDate)
                 .ThenBy(i => i.Id)
                 .ToListAsync();
+        }
+
+        // Everything a posted-order amendment/delete decision needs in one read:
+        // items (+ products), additional charges, payments, credit notes, customer.
+        public async Task<Invoice?> GetInvoiceForAmendmentAsync(int invoiceId)
+        {
+            return await _context.Invoices
+                .Include(i => i.Customer)
+                .Include(i => i.Items)
+                    .ThenInclude(ii => ii.Product)
+                .Include(i => i.AdditionalCharges)
+                .Include(i => i.PaymentAllocations)
+                .Include(i => i.CreditNotes)
+                .FirstOrDefaultAsync(i => i.Id == invoiceId);
+        }
+
+        public async Task<InvoiceAdditionalCharge?> GetChargeWithInvoiceAsync(int chargeId)
+        {
+            return await _context.Set<InvoiceAdditionalCharge>()
+                .Include(c => c.Invoice)
+                    .ThenInclude(i => i.Items)
+                .Include(c => c.Invoice)
+                    .ThenInclude(i => i.AdditionalCharges)
+                .FirstOrDefaultAsync(c => c.Id == chargeId);
         }
     }
 }

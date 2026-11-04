@@ -40,6 +40,8 @@ namespace DAL.Entities
 
         // Navigation
         public ICollection<InvoiceItem> Items { get; set; } = new List<InvoiceItem>();
+        public ICollection<InvoiceAdditionalCharge> AdditionalCharges { get; set; } = new List<InvoiceAdditionalCharge>();
+        public ICollection<InvoiceAmendment> Amendments { get; set; } = new List<InvoiceAmendment>();
         public ICollection<PaymentAllocation> PaymentAllocations { get; set; } = new List<PaymentAllocation>();
         public ICollection<CreditNote> CreditNotes { get; set; } = new List<CreditNote>();
         public ICollection<CashTransaction> LinkedCashTransactions { get; set; } = new List<CashTransaction>();

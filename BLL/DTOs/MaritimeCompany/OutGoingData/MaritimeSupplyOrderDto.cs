@@ -1,5 +1,6 @@
 namespace BLL.DTOs.MaritimeCompany.OutGoingData
 {
+    using BLL.DTOs.Invoice.OutGoingData;
     // One line of a supply order as shown in the detailed maritime account
     // statement. Every item carries its own supply-source flag.
     public class MaritimeSupplyOrderItemDto
@@ -42,6 +43,16 @@ namespace BLL.DTOs.MaritimeCompany.OutGoingData
         public decimal TotalAmount { get; set; }
 
         public List<MaritimeSupplyOrderItemDto> Items { get; set; } = new();
+
+        // Additional charges visible in the detailed statement only, split by
+        // whether the company is billed for them or they are internal cost.
+        public List<InvoiceChargeDto> Charges { get; set; } = new();
+
+        public decimal BillableChargesTotal { get; set; }
+
+        public decimal InternalChargesTotal { get; set; }
+
+        public bool HasCharges => Charges.Any();
 
         // Comfortable identifier used in statements: prefer the external supply
         // order number and keep the internal MAR-#### document as secondary.

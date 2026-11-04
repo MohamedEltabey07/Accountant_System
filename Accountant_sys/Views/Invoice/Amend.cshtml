@@ -1,0 +1,411 @@
+@using BLL.DTOs.Invoice.OutGoingData
+@using BLL.DTOs.Product.OutGoingData
+@using BLL.DTOs.Inventory.OutGoingData
+@using DAL.Enums
+@model InvoiceDto
+@{
+    ViewData["Title"] = "تصحيح أمر توريد بحري مرحل";
+
+    var isMaritime = Model.Type == InvoiceType.MaritimeSupply;
+    var productOptions = ViewBag.ProductOptions as List<ProductDto> ?? new List<ProductDto>();
+    var freezerBalances = ViewBag.FreezerBalances as Dictionary<int, StockBalanceDto> ?? new Dictionary<int, StockBalanceDto>();
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="bi bi-pencil-square text-primary me-2"></i>تصحيح أمر التوريد المرحل</h3>
+            <div class="text-muted small">
+                الأمر رقم <span class="fw-bold font-monospace">@Model.InvoiceNumber</span>
+                — أمر الشركة: <span class="fw-bold font-monospace">@(string.IsNullOrWhiteSpace(Model.ExternalOrderNumber) ? "-" : Model.ExternalOrderNumber)</span>
+                — الشركة: <span class="fw-bold">@Model.CustomerName</span>
+            </div>
+        </div>
+        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-right me-1"></i> رجوع إلى الأمر
+        </a>
+    </div>
+
+    <div class="alert alert-warning d-flex align-items-center gap-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-3 text-warning"></i>
+        <div>
+            <strong class="d-block">تصحيح متحكم فيه بمستند مرحل:</strong>
+            القيم الأصلية ستُحفظ في سجل التدقيق مع سبب التصحيح واسم المستخدم والتاريخ. سيعاد حساب الإجمالي، وسيُصحح مسحوب التلاجة بالفرق فقط (لا يُحذف أي سجل مخزون سابق)، وسُحب فرق المخزون إضافياً فقط إن توفر رصيد كافٍ.
+            <strong class="text-danger">لن يُمس أي سداد مسجّل على الأمر:</strong> إذا صار الإجمالي الجديد أقل من المسدد فسيظهر فرق السداد كرصيد دائن في حساب الشركة.
+            لا تُنشئ هذه العملية أي حركة نقدية.
+        </div>
+    </div>
+
+    <!-- Current totals strip -->
+    <div class="d-flex gap-3 mb-4 flex-wrap">
+        <div class="border rounded-3 p-3 flex-grow-1 bg-light">
+            <span class="small text-muted d-block">الإجمالي الحالي</span>
+            <strong class="fs-5 font-tabular">@Model.TotalAmount.ToString("N2") ج.م</strong>
+        </div>
+        <div class="border rounded-3 p-3 flex-grow-1 bg-light">
+            <span class="small text-muted d-block">المسدد حتى الآن</span>
+            <strong class="fs-5 font-tabular text-success">@Model.PaidAmount.ToString("N2") ج.م</strong>
+        </div>
+        <div class="border new-total-strip rounded-3 p-3 flex-grow-1 bg-light">
+            <span class="small text-muted d-block">الإجمالي بعد التصحيح</span>
+            <strong class="fs-5 font-tabular" id="newTotalPreview">—</strong>
+        </div>
+        <div class="border rounded-3 p-3 flex-grow-1 bg-light">
+            <span class="small text-muted d-block">فرق التصحيح</span>
+            <strong class="fs-5 font-tabular" id="totalDeltaPreview">—</strong>
+        </div>
+    </div>
+    <div id="creditWarning" class="alert alert-danger d-none">
+        <i class="bi bi-exclamation-octagon me-1"></i>
+        الإجمالي الجديد أقل من المبلغ المسدد: سيظهر الفرق كـ <strong>رصيد دائن لصالح الشركة</strong> (السدادات المسجّلة لن تُمس وسيُعاد حساب أرصدة أوامر الشركة لديك نتيجة ذلك).
+    </div>
+
+    <form asp-action="Amend" method="post" id="amendForm">
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <input type="hidden" name="InvoiceId" value="@Model.Id" />
+
+        <!-- Section 1: reason + meta data -->
+        <div class="card shadow-sm border-primary mb-4">
+            <div class="card-header bg-primary text-white py-2">
+                <h6 class="mb-0"><i class="bi bi-file-earmark-text me-1"></i> سبب التصحيح وبيانات أمر الشركة</h6>
+            </div>
+            <div class="card-body row g-3">
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">سبب التصحيح <span class="text-danger">*</span></label>
+                    <input type="text" name="Reason" class="form-control" maxlength="500" placeholder="مثال: الوزن الفعلي المسلّم 180 كجم وليس 200 كجم" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">رقم أمر الشركة الخارجي <small class="text-muted">(تصحيح اختياري)</small></label>
+                    <input type="text" name="ExternalOrderNumber" class="form-control font-monospace" value="@Model.ExternalOrderNumber" />
+                    <div class="small text-muted">اتركه كما هو إن لم يتغير. سيُعاد فحص تفرده عند التنفيذ.</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">تاريخ أمر التوريد</label>
+                    <input type="date" name="SupplyOrderDate" class="form-control" value="@(Model.SupplyOrderDate?.ToString("yyyy-MM-dd"))" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: existing items -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-secondary bg-opacity-75 text-white py-2 d-flex justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-box-seam me-1"></i> بنود أمر التوريد الحالية <small>(عدّل الوزن/السعر/الخصم/مصدر التوريد)</small></h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered text-center align-middle" id="existingItemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:28%;" class="text-start">الصنف</th>
+                                <th style="width:13%;">الوزن (كجم)</th>
+                                <th style="width:13%;">سعر الكجم</th>
+                                <th style="width:13%;">خصم البند</th>
+                                <th style="width:14%;">من الثلاجة؟</th>
+                                <th style="width:11%;">إجمالي البند</th>
+                                <th style="width:8%;">حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < Model.Items.Count; i++)
+                            {
+                                var item = Model.Items[i];
+                                <tr class="amend-item-row">
+                                    <td class="text-start fw-bold">
+                                        <input type="hidden" name="UpdatedItems.Index" value="@i" />
+                                        <input type="hidden" name="UpdatedItems[@i].ItemId" value="@item.Id" />
+                                        @(!string.IsNullOrWhiteSpace(item.ProductName) ? item.ProductName : "صنف غير محدد")
+                                        <span class="badge bg-light text-dark border">@item.Quantity.ToString("G29") كجم × @item.UnitPrice.ToString("N2")</span>
+                                    </td>
+                                    <td><input type="number" step="0.001" min="0.001" class="form-control form-control-sm font-tabular amend-qty" name="UpdatedItems[@i].Quantity" value="@item.Quantity" required /></td>
+                                    <td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular amend-price" name="UpdatedItems[@i].UnitPrice" value="@item.UnitPrice" required /></td>
+                                    <td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular amend-discount" name="UpdatedItems[@i].LineDiscountAmount" value="@item.LineDiscountAmount" /></td>
+                                    <td>
+                                        <div class="form-check form-switch d-flex justify-content-center">
+                                            <input type="checkbox" class="form-check-input amend-freezer" name="UpdatedItems[@i].IsFromFreezer" value="true" checked="@item.IsFromFreezer" />
+                                            <label class="form-check-label small ms-1">من التلاجة</label>
+                                        </div>
+                                    </td>
+                                    <td class="font-tabular fw-bold item-line-total">@item.LineTotal.ToString("N2")</td>
+                                    <td>
+                                        <input type="checkbox" class="form-check-input item-remove-check" name="RemovedItemIds" value="@item.Id" title="حدّد لحذف هذا البند أثناء التصحيح" />
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.Items.Any())
+                            {
+                                <tr><td colspan="7" class="text-muted">لا توجد بنود (التصحيح لن يُعتمد بلا بنود).</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: new items -->
+        <div class="card shadow-sm border-info mb-4">
+            <div class="card-header bg-info bg-opacity-75 text-white py-2 d-flex justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-plus-circle me-1"></i> إضافة بنود جديدة</h6>
+                <button type="button" class="btn btn-light btn-sm" id="addNewItemRow"><i class="bi bi-plus"></i> إضافة صف</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered text-center align-middle" id="newItemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:28%;" class="text-start">الصنف</th>
+                                <th style="width:13%;">الوزن (كجم)</th>
+                                <th style="width:13%;">سعر الكجم</th>
+                                <th style="width:13%;">خصم البند</th>
+                                <th style="width:14%;">من الثلاجة؟</th>
+                                <th style="width:11%;">إجمالي البند</th>
+                                <th style="width:8%;">إلغاء الصف</th>
+                            </tr>
+                        </thead>
+                        <tbody id="newItemsBody">
+                            <tr class="new-item-row placeholder"><td colspan="7" class="text-muted py-2">لا توجد بنود مضافة بعد — اضغط (إضافة صف).</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4: additional charges -->
+        <div class="card shadow-sm border-secondary mb-4">
+            <div class="card-header bg-secondary bg-opacity-75 text-white py-2 d-flex justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-receipt-cutoff me-1"></i> المصاريف والتكاليف الإضافية</h6>
+                <button type="button" class="btn btn-light btn-sm" id="addNewChargeRow"><i class="bi bi-plus"></i> إضافة صف</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive mb-2">
+                    <table class="table table-sm table-bordered text-center align-middle" id="chargesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:26%;" class="text-start">اسم المصروف</th>
+                                <th style="width:10%;">الكمية</th>
+                                <th style="width:12%;">سعر الوحدة</th>
+                                <th style="width:12%;">القيمة</th>
+                                <th style="width:16%;">محتسب على الشركة</th>
+                                <th style="width:16%;">ملاحظات</th>
+                                <th style="width:8%;">حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < Model.AdditionalCharges.Count; i++)
+                            {
+                                var charge = Model.AdditionalCharges[i];
+                                <tr>
+                                    <td class="text-start">
+                                        <input type="hidden" name="Charges.Index" value="@i" />
+                                        <input type="hidden" name="Charges[@i].ChargeId" value="@charge.Id" />
+                                        <input type="hidden" name="Charges[@i].InvoiceId" value="@Model.Id" />
+                                        <input type="text" class="form-control form-control-sm" name="Charges[@i].Description" value="@charge.Description" maxlength="200" required />
+                                    </td>
+                                    <td><input type="number" step="0.001" min="0" class="form-control form-control-sm font-tabular charge-qty" name="Charges[@i].Quantity" value="@(charge.Quantity?.ToString("0.###"))" /></td>
+                                    <td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular charge-price" name="Charges[@i].UnitPrice" value="@(charge.UnitPrice?.ToString("0.00"))" /></td>
+                                    <td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular charge-amount" name="Charges[@i].Amount" value="@charge.Amount.ToString("0.00")" /></td>
+                                    <td>
+                                        <div class="form-check form-switch d-flex justify-content-center">
+                                            <input type="checkbox" class="form-check-input charge-billable" name="Charges[@i].IsBillableToCompany" value="true" checked="@charge.IsBillableToCompany" />
+                                        </div>
+                                    </td>
+                                    <td><input type="text" class="form-control form-control-sm" name="Charges[@i].Notes" value="@charge.Notes" maxlength="500" /></td>
+                                    <td>
+                                        <input type="checkbox" class="form-check-input charge-remove-check" name="RemovedChargeIds" value="@charge.Id" title="حدّد لحذف هذا المصروف أثناء التصحيح" />
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.AdditionalCharges.Any())
+                            {
+                                <tr class="no-charges-note"><td colspan="7" class="text-muted py-2">لا توجد مصاريف محفوظة — أضفها من (إضافة صف).</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="small text-muted">
+                    أدخل الكمية وسعر الوحدة معاً لتُحسب القيمة تلقائياً على الخادم، أو أدخل جملة القيمة المباشرة. المصاريف المحتسبة على الشركة تُضاف إلى إجمالي أمر التوريد وتؤثر على رصيده؛ ولن يؤدي إدخالها إلى إنشاء أي حركة نقدية.
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="d-flex justify-content-between align-items-center my-5">
+            <div class="small text-muted">
+                <i class="bi bi-shield-check me-1"></i> كل الحسابات تُعاد وتُفحص على الخادم قبل التنفيذ؛ لا يجوز أن يصبح الأمر بدون بنود، ويجب توفر رصيد كافٍ بالتلاجة لأي زيادة في المسحوب.
+            </div>
+            <button type="button" class="btn btn-primary fw-bold px-4" id="amendSubmitBtn">
+                <i class="bi bi-check2-circle me-1"></i> تنفيذ التصحيح
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var invoiceId = @Model.Id;
+            var originalTotal = @(Model.TotalAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
+            var paidAmount = @(Model.PaidAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
+
+            var products = @Html.Raw(Json.Serialize(productOptions.Select(p => new {
+                p.Id,
+                name = p.Name,
+                frozen = p.Category == ProductCategory.FrozenFish ? 1 : 0,
+                availableKg = (p.Category == ProductCategory.FrozenFish && freezerBalances.ContainsKey(p.Id) ? freezerBalances[p.Id].AvailableKg : 0m),
+                perCarton = p.DefaultCartonWeightKg ?? 0m,
+                price = p.MaritimePricePerKg
+            })));
+
+            function fmt(n) { return (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+            function parse(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+            function isRowRemoved(row) {
+                var check = row.querySelector('.item-remove-check, .charge-remove-check, .new-remove-check');
+                return !!(check && check.checked);
+            }
+
+            function refreshTotals() {
+                var itemsTotal = 0;
+
+                // Existing item rows (updated values; removed rows excluded).
+                document.querySelectorAll('#existingItemsTable tr.amend-item-row').forEach(function (row) {
+                    if (isRowRemoved(row)) return;
+                    var qty = parse((row.querySelector('.amend-qty') || {}).value);
+                    var price = parse((row.querySelector('.amend-price') || {}).value);
+                    var disc = parse((row.querySelector('.amend-discount') || {}).value);
+                    var line = qty * price - disc;
+                    row.querySelector('.item-line-total').textContent = fmt(line);
+                    itemsTotal += line;
+                });
+
+                // New item rows.
+                document.querySelectorAll('#newItemsBody tr.new-item-row.editable').forEach(function (row) {
+                    if (isRowRemoved(row)) return;
+                    var qty = parse((row.querySelector('.new-qty') || {}).value);
+                    var price = parse((row.querySelector('.new-price') || {}).value);
+                    var disc = parse((row.querySelector('.new-discount') || {}).value);
+                    var line = qty * price - disc;
+                    row.querySelector('.new-line-total').textContent = fmt(line);
+                    itemsTotal += line;
+                });
+
+                // Charges (server recalculates again; preview is indicative).
+                var billableCharges = 0;
+                document.querySelectorAll('#chargesTable tbody tr').forEach(function (row) {
+                    var isEditableRow = row.querySelector('input[name$=".ChargeId"]');
+                    if (!isEditableRow) return;
+                    var qtyInput = row.querySelector('.charge-qty');
+                    var priceInput = row.querySelector('.charge-price');
+                    var amountInput = row.querySelector('.charge-amount');
+                    var qty = qtyInput ? parse(qtyInput.value) : 0;
+                    var price = priceInput ? parse(priceInput.value) : 0;
+                    var amount = amountInput ? parse(amountInput.value) : 0;
+                    if (qtyInput && priceInput && qty > 0 && price > 0) {
+                        amount = qty * price;
+                        if (amountInput) amountInput.value = amount.toFixed(2);
+                    }
+                    var billableCheck = row.querySelector('.charge-billable');
+                    var billable = billableCheck ? billableCheck.checked : false;
+                    if (!isRowRemoved(row) && billable) billableCharges += amount;
+                });
+
+                var newTotal = itemsTotal + billableCharges;
+                document.getElementById('newTotalPreview').textContent = fmt(newTotal) + ' ج.م';
+
+                var delta = newTotal - originalTotal;
+                var deltaEl = document.getElementById('totalDeltaPreview');
+                deltaEl.textContent = (delta > 0 ? '+' : '') + fmt(delta) + ' ج.م';
+                deltaEl.className = delta > 0 ? 'fs-5 font-tabular text-danger' : (delta < 0 ? 'fs-5 font-tabular text-success' : 'fs-5 font-tabular');
+
+                document.getElementById('creditWarning').classList.toggle('d-none', !(newTotal < paidAmount));
+            }
+
+            document.querySelectorAll('#existingItemsTable tbody tr, #chargesTable tbody tr').forEach(function (row) {
+                row.addEventListener('input', refreshTotals);
+                row.addEventListener('change', refreshTotals);
+            });
+            document.getElementById('newItemsBody').addEventListener('input', refreshTotals);
+            document.getElementById('newItemsBody').addEventListener('change', refreshTotals);
+
+            // ----- New item rows -----
+            var newItemRows = 0;
+            document.getElementById('addNewItemRow').addEventListener('click', function () {
+                var placeholder = document.querySelector('#newItemsBody tr.placeholder');
+                if (placeholder) placeholder.remove();
+
+                var i = newItemRows++;
+                var row = document.createElement('tr');
+                row.className = 'new-item-row editable';
+                row.innerHTML =
+                    '<td class="text-start"><input type="hidden" name="NewItems.Index" value="' + i + '" />' +
+                    '<input type="hidden" name="NewItems[' + i + '].InvoiceId" value="' + invoiceId + '" />' +
+                    '<select class="form-select form-select-sm new-product" name="NewItems[' + i + '].ProductId" required><option value="">-- اختر الصنف --</option>' +
+                    products.map(function (p) { return '<option value="' + p.id + '" data-frozen="' + p.frozen + '" data-price="' + (p.price == null ? '' : p.price) + '">' + p.name + (p.frozen === 1 ? ' — مجمد' : ' — عادي') + '</option>'; }).join('') +
+                    '</select></td>' +
+                    '<td><input type="number" step="0.001" min="0.001" class="form-control form-control-sm font-tabular new-qty" name="NewItems[' + i + '].Quantity" required /></td>' +
+                    '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular new-price" name="NewItems[' + i + '].UnitPrice" /></td>' +
+                    '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular new-discount" name="NewItems[' + i + '].LineDiscountAmount" value="0" /></td>' +
+                    '<td><div class="form-check form-switch d-flex justify-content-center"><input type="checkbox" class="form-check-input new-freezer" name="NewItems[' + i + '].IsFromFreezer" value="true" /><label class="form-check-label small ms-1">من التلاجة</label></div></td>' +
+                    '<td class="font-tabular fw-bold new-line-total">0.00</td>' +
+                    '<td><input type="checkbox" class="form-check-input new-remove-check" title="إلغاء هذا الصف قبل التنفيذ" /></td>';
+                document.getElementById('newItemsBody').appendChild(row);
+
+                var productSel = row.querySelector('.new-product');
+                productSel.addEventListener('change', function () {
+                    var opt = productSel.options[productSel.selectedIndex];
+                    if (opt && opt.dataset.price) {
+                        var priceInput = row.querySelector('.new-price');
+                        if (!priceInput.value) priceInput.value = opt.dataset.price;
+                    }
+                    refreshTotals();
+                });
+            });
+
+            // ----- New charge rows -----
+            document.getElementById('addNewChargeRow').addEventListener('click', function () {
+                var note = document.querySelector('#chargesTable .no-charges-note');
+                if (note) note.remove();
+                var i = document.querySelectorAll('input[name="Charges.Index"]').length;
+                var row = document.createElement('tr');
+                row.innerHTML =
+                    '<td class="text-start"><input type="hidden" name="Charges.Index" value="' + i + '" />' +
+                    '<input type="hidden" name="Charges[' + i + '].ChargeId" value="0" />' +
+                    '<input type="hidden" name="Charges[' + i + '].InvoiceId" value="' + invoiceId + '" />' +
+                    '<input type="text" class="form-control form-control-sm" name="Charges[' + i + '].Description" maxlength="200" placeholder="مثال: صناديق ثلج" required /></td>' +
+                    '<td><input type="number" step="0.001" min="0" class="form-control form-control-sm font-tabular charge-qty" name="Charges[' + i + '].Quantity" /></td>' +
+                    '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular charge-price" name="Charges[' + i + '].UnitPrice" /></td>' +
+                    '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm font-tabular charge-amount" name="Charges[' + i + '].Amount" /></td>' +
+                    '<td><div class="form-check form-switch d-flex justify-content-center"><input type="checkbox" class="form-check-input charge-billable" name="Charges[' + i + '].IsBillableToCompany" value="true" checked="checked" /></div></td>' +
+                    '<td><input type="text" class="form-control form-control-sm" name="Charges[' + i + '].Notes" maxlength="500" /></td>' +
+                    '<td><input type="checkbox" class="form-check-input charge-remove-check" title="إلغاء هذا المصروف" /></td>';
+                document.querySelector('#chargesTable tbody').appendChild(row);
+            });
+
+            refreshTotals();
+
+            // ----- Confirmation + submit -----
+            document.getElementById('amendSubmitBtn').addEventListener('click', function (e) {
+                e.preventDefault();
+                var form = document.getElementById('amendForm');
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+                if (window.Swal) {
+                    Swal.fire({
+                        title: 'تنفيذ التصحيح؟',
+                        text: 'سيعاد حساب الإجمالي، وسيُصدح مسحوب التلاجة بالفرق، وستُسجل القيم الأصلية في سجل التدقيق مع سبب التصحيح. السدادات الحالية لن تُمس.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'نعم، نفّذ التصحيح',
+                        cancelButtonText: 'إلغاء',
+                        confirmButtonColor: '#0f3460'
+                    }).then(function (result) {
+                        if (result.isConfirmed) form.submit();
+                    });
+                } else {
+                    if (confirm('تنفيذ التصحيح؟')) form.submit();
+                }
+            });
+        })();
+    </script>
+}

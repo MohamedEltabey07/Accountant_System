@@ -90,6 +90,7 @@ namespace BLL.Service
                 var duplicateExternal = await _unitOfWork.InvoiceRepo.GetAllAsync();
                 var duplicated = duplicateExternal.Any(i =>
                     i.Type == InvoiceType.MaritimeSupply &&
+                    i.CustomerId == dto.CustomerId &&
                     i.Status != InvoiceStatus.Cancelled &&
                     i.ExternalOrderNumber == externalOrderNumber);
                 if (duplicated)
@@ -262,6 +263,103 @@ namespace BLL.Service
                     $"الصنف ({product.Name}) ليس من أصناف الأسماك المجمدة، ولذلك لا يمكن تعليمه (التوريد من الثلاجة).");
         }
 
+        // ==========================================
+        // Additional charges on maritime supply orders
+        // ==========================================
+        private static InvoiceAdditionalCharge BuildChargeFromDto(AddInvoiceChargeDto dto)
+        {
+            var description = (dto.Description ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(description))
+                throw new InvalidOperationException("اسم المصروف مطلوب.");
+            if (dto.Description.Length > 200)
+                throw new InvalidOperationException("اسم المصروف لا يمكن أن يتجاوز 200 حرف.");
+            if (!string.IsNullOrWhiteSpace(dto.Notes) && dto.Notes.Length > 500)
+                throw new InvalidOperationException("ملاحظات المصروف لا يمكن أن تتجاوز 500 حرف.");
+
+            // Server-side recalculation: the Amount passed from the form is only
+            // trusted when Quantity x UnitPrice cannot produce it.
+            decimal amount;
+            if (dto.Quantity.HasValue && dto.UnitPrice.HasValue)
+            {
+                if (dto.Quantity.Value <= 0)
+                    throw new InvalidOperationException("كمية المصروف يجب أن تكون أكبر من صفر.");
+                amount = dto.Quantity.Value * dto.UnitPrice.Value;
+            }
+            else
+            {
+                if (dto.Quantity.HasValue != dto.UnitPrice.HasValue)
+                    throw new InvalidOperationException(
+                        "المصروف غير مكتمل: أدخل الكمية وسعر الوحدة معاً لتُحسب القيمة تلقائياً، أو أدخل جملة القيمة المباشرة.");
+                amount = dto.Amount ?? 0m;
+            }
+
+            if (amount <= 0)
+                throw new InvalidOperationException("قيمة المصروف يجب أن تكون أكبر من صفر.");
+
+            return new InvoiceAdditionalCharge
+            {
+                Description = description,
+                Quantity = dto.Quantity,
+                UnitPrice = dto.UnitPrice,
+                Amount = decimal.Round(amount, 2),
+                IsBillableToCompany = dto.IsBillableToCompany,
+                Notes = dto.Notes
+            };
+        }
+
+        public async Task<bool> AddChargeToDraftAsync(AddInvoiceChargeDto dto)
+        {
+            if (dto == null) return false;
+
+            var invoice = await _unitOfWork.InvoiceRepo.GetInvoiceWithItemsAsync(dto.InvoiceId);
+            if (invoice == null || invoice.Status != InvoiceStatus.Draft) return false;
+
+            if (invoice.Type != InvoiceType.MaritimeSupply)
+                throw new InvalidOperationException("المصاريف والتكاليف الإضافية مسموحة فقط في أوامر التوريد للشركات البحرية.");
+
+            invoice.AdditionalCharges.Add(BuildChargeFromDto(dto));
+
+            RecalculateInvoiceTotals(invoice);
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> UpdateDraftChargeAsync(UpdateInvoiceChargeDto dto)
+        {
+            if (dto == null) return false;
+
+            var charge = await _unitOfWork.InvoiceRepo.GetChargeWithInvoiceAsync(dto.ChargeId);
+            if (charge == null || charge.Invoice.Status != InvoiceStatus.Draft) return false;
+
+            if (charge.Invoice.Type != InvoiceType.MaritimeSupply)
+                throw new InvalidOperationException("المصاريف والتكاليف الإضافية مسموحة فقط في أوامر التوريد للشركات البحرية.");
+
+            var updated = BuildChargeFromDto(dto);
+            charge.Description = updated.Description;
+            charge.Quantity = updated.Quantity;
+            charge.UnitPrice = updated.UnitPrice;
+            charge.Amount = updated.Amount;
+            charge.IsBillableToCompany = updated.IsBillableToCompany;
+            charge.Notes = updated.Notes;
+
+            RecalculateInvoiceTotals(charge.Invoice);
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> RemoveChargeFromDraftAsync(int chargeId)
+        {
+            var charge = await _unitOfWork.InvoiceRepo.GetChargeWithInvoiceAsync(chargeId);
+            if (charge == null || charge.Invoice.Status != InvoiceStatus.Draft) return false;
+
+            charge.Invoice.AdditionalCharges.Remove(charge);
+            // cascade: the charge row is deleted when removed from the invoice collection
+
+            RecalculateInvoiceTotals(charge.Invoice);
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        }
+
         public async Task<bool> PostInvoiceAsync(int invoiceId)
         {
             var invoice = await _unitOfWork.InvoiceRepo.GetInvoiceWithItemsAsync(invoiceId);
@@ -409,15 +507,26 @@ namespace BLL.Service
         {
             if (dto == null) return false;
 
-            var invoice = await _unitOfWork.InvoiceRepo.GetInvoiceWithAllocationsAndCreditNotesAsync(dto.InvoiceId);
+            var invoice = await _unitOfWork.InvoiceRepo.GetInvoiceForAmendmentAsync(dto.InvoiceId);
             if (invoice == null || invoice.Status != InvoiceStatus.Posted) return false;
 
-            var hasActiveAllocations = invoice.PaymentAllocations.Any();
             var hasActiveCreditNotes = invoice.CreditNotes.Any(cn => cn.Status != CreditNoteStatus.Cancelled);
 
-            if (hasActiveAllocations || hasActiveCreditNotes)
+            if (hasActiveCreditNotes)
                 throw new InvalidOperationException(
-                    "لا يمكن إلغاء فاتورة مرتبطة بسدادات أو مرتجعات. ألغ أولاً السداد أو الإشعارات المرتبطة بنفس الحساب.");
+                    "لا يمكن إلغاء فاتورة مرتبطة بمرتجعات. ألغ أولاً الإشعارات المرتبطة بنفس الحساب.");
+
+            var hasActiveAllocations = invoice.PaymentAllocations.Any();
+            // ── Maritime supply orders (business-level removal of an erroneous order):
+            //    - posted credit notes still block (they reverse physical returns),
+            //    - payment allocations are DETACHED while their underlying CashTransaction
+            //      rows are preserved: the real money remains a valid company receipt and
+            //      flows as an unallocated credit/advance under the existing balance math
+            //      (settled = paidTotal - allocatedToInvoices).
+            // ── Other invoice types keep the strict previous behaviour.
+            if (hasActiveAllocations && invoice.Type != InvoiceType.MaritimeSupply)
+                throw new InvalidOperationException(
+                    "لا يمكن إلغاء فاتورة مرتبطة بسدادات. ألغ أولاً السداد أو الإشعارات المرتبطة بنفس الحساب.");
 
             await _unitOfWork.BeginTransactionAsync();
             try
@@ -453,6 +562,402 @@ namespace BLL.Service
                     }
                 }
 
+                // Detach allocations pointing at the voided maritime order; the cash
+                // transactions (real money) remain untouched and become unallocated
+                // company credit/advance through the existing balance settlement math.
+                foreach (var allocation in invoice.PaymentAllocations.ToList())
+                {
+                    invoice.PaymentAllocations.Remove(allocation);
+                    _unitOfWork.PaymentAllocationRepo.Delete(allocation);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                return true;
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
+
+        // ==========================================
+        // Controlled amendment of POSTED maritime supply orders
+        // ==========================================
+        public async Task<bool> AmendPostedMaritimeInvoiceAsync(AmendPostedMaritimeInvoiceDto dto, string? userId = null)
+        {
+            if (dto == null) return false;
+            if (string.IsNullOrWhiteSpace(dto.Reason))
+                throw new InvalidOperationException("سبب التصحيح مطلوب.");
+
+            var invoice = await _unitOfWork.InvoiceRepo.GetInvoiceForAmendmentAsync(dto.InvoiceId);
+            if (invoice == null) return false;
+
+            if (invoice.Type != InvoiceType.MaritimeSupply)
+                throw new InvalidOperationException("التصحيح المتحكم فيه متاح فقط لأوامر التوريد للشركات البحرية.");
+            if (invoice.Status != InvoiceStatus.Posted)
+                throw new InvalidOperationException("لا يمكن تصحيح فاتورة غير مرحلة. المسودات تُعدّل مباشرة من صفحة الفاتورة.");
+
+            var beforeSnapshot = SnapshotInvoiceForAmendment(invoice);
+            var originalItems = invoice.Items.ToList();
+            var originalCharges = invoice.AdditionalCharges.ToList();
+
+            // ===== Phase A: full validation BEFORE any entity is mutated so an
+            // invalid amendment never leaves half-tracked state (InMemory-safe). =====
+
+            if (dto.UpdatedItems.Select(x => x.ItemId).Distinct().Count() != dto.UpdatedItems.Count)
+                throw new InvalidOperationException("يوجد بند مكرر في قائمة التصحيحات.");
+            if (dto.RemovedItemIds.Distinct().Count() != dto.RemovedItemIds.Count)
+                throw new InvalidOperationException("يوجد بند مكرر في قائمة الحذف.");
+            if (dto.RemovedChargeIds.Distinct().Count() != dto.RemovedChargeIds.Count)
+                throw new InvalidOperationException("يوجد مصروف مكرر في قائمة الحذف.");
+
+            var itemsById = originalItems.ToDictionary(i => i.Id);
+            foreach (var itemId in dto.RemovedItemIds)
+            {
+                if (!itemsById.ContainsKey(itemId))
+                    throw new InvalidOperationException($"البند رقم ({itemId}) غير موجود في هذا أمر التوريد.");
+                if (dto.UpdatedItems.Any(u => u.ItemId == itemId))
+                    throw new InvalidOperationException($"البند رقم ({itemId}) لا يمكن أن يكون في التصحيح والحذف معاً.");
+            }
+
+            foreach (var updated in dto.UpdatedItems)
+            {
+                if (!itemsById.TryGetValue(updated.ItemId, out var existingItem))
+                    throw new InvalidOperationException($"البند رقم ({updated.ItemId}) غير موجود في هذا أمر التوريد.");
+
+                if (updated.Quantity <= 0)
+                    throw new InvalidOperationException($"الوزن المطلوب للصنف ({existingItem.ProductName}) يجب أن يكون أكبر من صفر.");
+                if (updated.UnitPrice < 0)
+                    throw new InvalidOperationException($"سعر الوحدة للصنف ({existingItem.ProductName}) لا يمكن أن يكون سالباً.");
+                if (updated.LineDiscountAmount < 0)
+                    throw new InvalidOperationException($"خصم البند للصنف ({existingItem.ProductName}) لا يمكن أن يكون سالباً.");
+
+                var gross = updated.Quantity * updated.UnitPrice;
+                if (updated.LineDiscountAmount > gross)
+                    throw new InvalidOperationException(
+                        $"خصم البند ({updated.LineDiscountAmount:N2} ج.م) للصنف ({existingItem.ProductName}) لا يمكن أن يتجاوز إجمالي قيمة البند ({gross:N2} ج.م).");
+
+                var product = await _productService.GetProductByIdAsync(existingItem.ProductId)
+                    ?? throw new InvalidOperationException($"الصنف رقم ({existingItem.ProductId}) غير موجود في دليل المنتجات.");
+
+                ValidateMaritimeItemSourcing(product, updated.IsFromFreezer);
+            }
+
+            var newItems = new List<(AddInvoiceItemDto Dto, ProductDto Product)>();
+            foreach (var newDto in dto.NewItems)
+            {
+                var product = await _productService.GetProductByIdAsync(newDto.ProductId)
+                    ?? throw new InvalidOperationException($"الصنف رقم ({newDto.ProductId}) غير موجود في دليل المنتجات.");
+
+                if (newDto.Quantity <= 0)
+                    throw new InvalidOperationException($"الوزن المطلوب للصنف ({product.Name}) يجب أن يكون أكبر من صفر.");
+                if (newDto.LineDiscountAmount < 0)
+                    throw new InvalidOperationException($"خصم البند للصنف ({product.Name}) لا يمكن أن يكون سالباً.");
+
+                var unitPrice = newDto.UnitPrice ?? product.MaritimePricePerKg;
+                if (unitPrice is null)
+                    throw new InvalidOperationException(
+                        $"أدخل سعر الكجم للصنف ({product.Name}); لا يوجد سعر توريد افتراضي محدد له في دليل المنتجات.");
+                newDto.UnitPrice = unitPrice.Value;
+
+                var gross = newDto.Quantity * unitPrice.Value;
+                if (newDto.LineDiscountAmount > gross)
+                    throw new InvalidOperationException(
+                        $"خصم البند ({newDto.LineDiscountAmount:N2} ج.م) للصنف ({product.Name}) لا يمكن أن يتجاوز إجمالي قيمة البند ({gross:N2} ج.م).");
+
+                ValidateMaritimeItemSourcing(product, newDto.IsFromFreezer);
+                newItems.Add((newDto, product));
+            }
+
+            foreach (var chargeId in dto.RemovedChargeIds)
+            {
+                if (originalCharges.All(c => c.Id != chargeId))
+                    throw new InvalidOperationException($"المصروف رقم ({chargeId}) غير موجود في هذا أمر التوريد.");
+            }
+
+            foreach (var chargeDto in dto.Charges)
+            {
+                if (chargeDto.ChargeId != 0 && originalCharges.All(c => c.Id != chargeDto.ChargeId))
+                    throw new InvalidOperationException($"المصروف رقم ({chargeDto.ChargeId}) غير موجود في هذا أمر التوريد.");
+
+                if (chargeDto.Description != null && chargeDto.Description.Length > 200)
+                    throw new InvalidOperationException("اسم المصروف لا يمكن أن يتجاوز 200 حرف.");
+                if (!string.IsNullOrWhiteSpace(chargeDto.Notes) && chargeDto.Notes.Length > 500)
+                    throw new InvalidOperationException("ملاحظات المصروف لا يمكن أن تتجاوز 500 حرف.");
+                if (chargeDto.Quantity.HasValue && chargeDto.UnitPrice.HasValue && chargeDto.Quantity.Value <= 0)
+                    throw new InvalidOperationException("كمية المصروف يجب أن تكون أكبر من صفر.");
+                if (chargeDto.Quantity.HasValue != chargeDto.UnitPrice.HasValue && chargeDto.Amount is null)
+                    throw new InvalidOperationException(
+                        "المصروف غير مكتمل: أدخل الكمية وسعر الوحدة معاً لتُحسب القيمة تلقائياً، أو أدخل جملة القيمة المباشرة.");
+                if ((chargeDto.Quantity.HasValue && chargeDto.UnitPrice.HasValue
+                        ? chargeDto.Quantity.Value * chargeDto.UnitPrice.Value
+                        : chargeDto.Amount ?? 0m) <= 0)
+                    throw new InvalidOperationException("قيمة المصروف يجب أن تكون أكبر من صفر.");
+            }
+
+            // External order number correction: same uniqueness rules as creation,
+            // scoped per company and excluding cancelled orders (and this same order).
+            string? correctedExternalNumber = null;
+            if (dto.ExternalOrderNumber != null)
+            {
+                correctedExternalNumber = dto.ExternalOrderNumber.Trim();
+                if (string.IsNullOrEmpty(correctedExternalNumber))
+                    throw new InvalidOperationException("رقم أمر التوريد الخارجي المرسل من الشركة البحرية مطلوب.");
+
+                var duplicated = (await _unitOfWork.InvoiceRepo.GetAllAsync()).Any(i =>
+                    i.Type == InvoiceType.MaritimeSupply &&
+                    i.CustomerId == invoice.CustomerId &&
+                    i.Status != InvoiceStatus.Cancelled &&
+                    i.Id != invoice.Id &&
+                    i.ExternalOrderNumber == correctedExternalNumber);
+                if (duplicated)
+                    throw new InvalidOperationException($"رقم أمر التوريد ({correctedExternalNumber}) مستخدم بالفعل في أمر توريد سابق له نفس الشركة.");
+            }
+
+            // Expected new freezer requirement per product (only freezer-sourced rows).
+            // The old requirement was ALREADY deducted at posting, so a post-amendment
+            // increase is validated against the CURRENT available balance; a decrease
+            // only forces a compensating return movement. The old requirement is
+            // snapshotted BEFORE Phase B mutates the item entities in place (the
+            // "original items" list holds references, not copies).
+            var oldFreezerRequirementByProduct = originalItems
+                .Where(i => i.IsFromFreezer)
+                .GroupBy(i => i.ProductId)
+                .ToDictionary(g => g.Key, g => StockMovementService.Round(g.Sum(i => i.Quantity)));
+
+            var newFreezerRequirement = new Dictionary<int, decimal>();
+            void TrackRequirement(int productId, decimal kg)
+            {
+                newFreezerRequirement[productId] = (newFreezerRequirement.TryGetValue(productId, out var current) ? current : 0m) + kg;
+            }
+
+            foreach (var updated in dto.UpdatedItems)
+            {
+                var existing = itemsById[updated.ItemId];
+                if (updated.IsFromFreezer)
+                    TrackRequirement(existing.ProductId, StockMovementService.Round(updated.Quantity));
+            }
+            foreach (var (newDto, _) in newItems)
+            {
+                if (newDto.IsFromFreezer)
+                    TrackRequirement(newDto.ProductId, StockMovementService.Round(newDto.Quantity));
+            }
+
+            // An order cannot become empty: at least one item must remain.
+            var remainingItemCount = originalItems.Count(i => !dto.RemovedItemIds.Contains(i.Id)) + newItems.Count;
+            if (remainingItemCount == 0)
+                throw new InvalidOperationException("لا يمكن أن يصبح أمر التوريد بدون بنود. ألغِ الطلب بدلاً من حذف كل بنوده.");
+
+            // ===== Phase B: mutation inside the stock gate and the transaction,
+            // mirroring the atomic posting workflow. =====
+            await StockConcurrencyGate.Gate.WaitAsync();
+            try
+            {
+                await _unitOfWork.BeginTransactionAsync();
+                try
+                {
+                    // Item removals
+                    foreach (var itemId in dto.RemovedItemIds)
+                    {
+                        var removed = itemsById[itemId];
+                        invoice.Items.Remove(removed);
+                    }
+
+                    // Item updates
+                    foreach (var updated in dto.UpdatedItems)
+                    {
+                        var existing = itemsById[updated.ItemId];
+                        existing.Quantity = updated.Quantity;
+                        existing.UnitPrice = updated.UnitPrice;
+                        existing.LineDiscountAmount = updated.LineDiscountAmount;
+                        existing.LineTotal = updated.Quantity * updated.UnitPrice - updated.LineDiscountAmount;
+                        existing.IsFromFreezer = updated.IsFromFreezer;
+                    }
+
+                    // Item additions
+                    foreach (var (newDto, product) in newItems)
+                    {
+                        var item = _mapper.Map<InvoiceItem>(newDto);
+                        item.InvoiceId = invoice.Id;
+                        item.ProductId = product.Id;
+                        item.ProductName = product.Name;
+                        item.UnitPrice = newDto.UnitPrice!.Value;
+                        item.LineTotal = newDto.Quantity * newDto.UnitPrice.Value - newDto.LineDiscountAmount;
+                        invoice.Items.Add(item);
+                    }
+
+                    // Charge upserts and removals
+                    var chargesById = originalCharges.ToDictionary(c => c.Id);
+                    foreach (var chargeId in dto.RemovedChargeIds)
+                    {
+                        var removed = chargesById[chargeId];
+                        invoice.AdditionalCharges.Remove(removed);
+                    }
+                    foreach (var chargeDto in dto.Charges)
+                    {
+                        if (chargeDto.ChargeId != 0 && chargesById.TryGetValue(chargeDto.ChargeId, out var existingCharge))
+                        {
+                            var updatedCharge = BuildChargeFromDto(chargeDto);
+                            existingCharge.Description = updatedCharge.Description;
+                            existingCharge.Quantity = updatedCharge.Quantity;
+                            existingCharge.UnitPrice = updatedCharge.UnitPrice;
+                            existingCharge.Amount = updatedCharge.Amount;
+                            existingCharge.IsBillableToCompany = updatedCharge.IsBillableToCompany;
+                            existingCharge.Notes = updatedCharge.Notes;
+                        }
+                        else
+                        {
+                            invoice.AdditionalCharges.Add(BuildChargeFromDto(chargeDto));
+                        }
+                    }
+
+                    // Meta data corrections
+                    if (correctedExternalNumber != null)
+                        invoice.ExternalOrderNumber = correctedExternalNumber;
+                    if (dto.SupplyOrderDate.HasValue)
+                        invoice.SupplyOrderDate = dto.SupplyOrderDate.Value;
+
+                    // Freezer stock reconciliation: one compensating movement per
+                    // product whose net freezer requirement actually changed
+                    // (price-only edits produce no movement at all). The scan runs
+                    // over the UNION of old and new requirement keys, so products
+                    // whose freezer rows were removed or flipped OFF entirely still
+                    // produce their compensating return movement.
+                    var affectedProductIds = oldFreezerRequirementByProduct.Keys
+                        .Concat(newFreezerRequirement.Keys)
+                        .Distinct();
+                    foreach (var productId in affectedProductIds)
+                    {
+                        var diff = StockMovementService.Round(
+                            newFreezerRequirement.GetValueOrDefault(productId) - oldFreezerRequirementByProduct.GetValueOrDefault(productId));
+                        if (diff == 0)
+                            continue;
+
+                        var product = await _unitOfWork.ProductRepo.GetByIdAsync(productId)
+                            ?? throw new InvalidOperationException($"الصنف رقم ({productId}) غير موجود في دليل المنتجات.");
+                        var perCarton = product.DefaultCartonWeightKg ?? 0m;
+
+                        if (diff > 0)
+                        {
+                            var availableKg = await _unitOfWork.StockMovementRepo.GetAvailableWeightKgAsync(productId);
+                            if (diff > availableKg)
+                                throw new InvalidOperationException(
+                                    $"لا توجد كمية كافية في الثلاجات من ({product.Name}) لتنفيذ التصحيح. المطلوب زيادة: {diff:N3} كجم، المتاح: {availableKg:N3} كجم.");
+
+                            await _unitOfWork.StockMovementRepo.AddAsync(new StockMovement
+                            {
+                                ProductId = productId,
+                                ProductName = product.Name,
+                                MovementType = StockMovementType.Out,
+                                MovementDate = DateTime.UtcNow,
+                                Cartons = perCarton > 0 ? -StockMovementService.Round(diff / perCarton) : 0m,
+                                WeightPerCartonKg = perCarton > 0 ? StockMovementService.Round(perCarton) : null,
+                                TotalWeightKg = -diff,
+                                SourceInvoiceId = invoice.Id,
+                                Reason = $"تصحيح أمر توريد ({invoice.ExternalOrderNumber ?? invoice.InvoiceNumber}) لصالح {invoice.Customer?.Name ?? "شركة بحرية"}: زيادة الوزن المسحوب من التلاجة بمقدار {diff:N3} كجم. السبب: {dto.Reason}",
+                                CreatedAt = DateTime.UtcNow,
+                                CreatedByUserId = userId
+                            });
+                        }
+                        else
+                        {
+                            var compensation = -diff;
+                            await _unitOfWork.StockMovementRepo.AddAsync(new StockMovement
+                            {
+                                ProductId = productId,
+                                ProductName = product.Name,
+                                MovementType = StockMovementType.In,
+                                MovementDate = DateTime.UtcNow,
+                                Cartons = perCarton > 0 ? StockMovementService.Round(compensation / perCarton) : 0m,
+                                WeightPerCartonKg = perCarton > 0 ? StockMovementService.Round(perCarton) : null,
+                                TotalWeightKg = compensation,
+                                SourceInvoiceId = invoice.Id,
+                                Reason = $"تصحيح أمر توريد ({invoice.ExternalOrderNumber ?? invoice.InvoiceNumber}) لصالح {invoice.Customer?.Name ?? "شركة بحرية"}: عوض وزن مسحوب من التلاجة بمقدار {compensation:N3} كجم. السبب: {dto.Reason}",
+                                CreatedAt = DateTime.UtcNow,
+                                CreatedByUserId = userId
+                            });
+                        }
+                    }
+
+                    RecalculateInvoiceTotals(invoice);
+
+                    invoice.Amendments.Add(new InvoiceAmendment
+                    {
+                        InvoiceId = invoice.Id,
+                        AmendedAtUtc = DateTime.UtcNow,
+                        AmendedByUserId = userId,
+                        Reason = dto.Reason.Trim(),
+                        BeforeJson = beforeSnapshot,
+                        AfterJson = SnapshotInvoiceForAmendment(invoice),
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    return true;
+                }
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
+            }
+            finally
+            {
+                StockConcurrencyGate.Gate.Release();
+            }
+        }
+
+        // Serialized before/after financial + stock-relevant snapshot for the audit
+        // trail written to InvoiceAmendment.
+        private static string SnapshotInvoiceForAmendment(Invoice invoice)
+        {
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                invoice.InvoiceNumber,
+                invoice.ExternalOrderNumber,
+                invoice.SupplyOrderDate,
+                invoice.SubTotal,
+                invoice.ItemDiscountTotal,
+                invoice.InvoiceDiscountAmount,
+                invoice.TotalAmount,
+                BillableChargesTotal = invoice.AdditionalCharges?.Where(c => c.IsBillableToCompany).Sum(c => c.Amount) ?? 0m,
+                InternalChargesTotal = invoice.AdditionalCharges?.Where(c => !c.IsBillableToCompany).Sum(c => c.Amount) ?? 0m,
+                AllocatedPayments = invoice.PaymentAllocations?.Sum(pa => pa.Amount) ?? 0m,
+                Items = invoice.Items.Select(i => new
+                {
+                    i.Id, i.ProductId, i.ProductName, i.Quantity, i.UnitPrice, i.LineDiscountAmount, i.IsFromFreezer
+                }),
+                Charges = (invoice.AdditionalCharges ?? new List<InvoiceAdditionalCharge>()).Select(c => new
+                {
+                    c.Id, c.Description, c.Quantity, c.UnitPrice, c.Amount, c.IsBillableToCompany
+                })
+            });
+        }
+
+        // ==========================================
+        // Safe deletion of DRAFT supply orders
+        // ==========================================
+        public async Task<bool> DeleteDraftInvoiceAsync(int invoiceId)
+        {
+            var invoice = await _unitOfWork.InvoiceRepo.GetInvoiceForAmendmentAsync(invoiceId);
+            if (invoice == null || invoice.Status != InvoiceStatus.Draft) return false;
+            if (invoice.StockMovements.Count > 0 || invoice.PaymentAllocations.Count > 0 || invoice.CreditNotes.Count > 0)
+                throw new InvalidOperationException("لا يمكن حذف فاتورة مسودة مرتبطة سابقاً بمخزون أو سدادات. ألغِ أو راجع السداد أولاً.");
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // Draft rows never touched stock or balances: a true physical delete
+                // of the draft and its draft-only children (no orphaned records).
+                foreach (var item in invoice.Items.ToList())
+                    invoice.Items.Remove(item);
+                foreach (var charge in invoice.AdditionalCharges.ToList())
+                    invoice.AdditionalCharges.Remove(charge);
+                _unitOfWork.InvoiceRepo.Delete(invoice);
+
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
                 return true;
@@ -486,6 +991,12 @@ namespace BLL.Service
 
             var dto = _mapper.Map<InvoiceDto>(invoice);
 
+            dto.BillableChargesTotal = dto.AdditionalCharges.Where(c => c.IsBillableToCompany).Sum(c => c.Amount);
+            dto.InternalChargesTotal = dto.AdditionalCharges.Where(c => !c.IsBillableToCompany).Sum(c => c.Amount);
+            dto.Amendments = dto.Amendments
+                .OrderByDescending(a => a.AmendedAtUtc)
+                .ToList();
+
             var withSettlement = await _unitOfWork.InvoiceRepo.GetInvoiceWithAllocationsAndCreditNotesAsync(id);
             if (withSettlement != null)
             {
@@ -512,6 +1023,8 @@ namespace BLL.Service
                 dto.PaidAmount = paidAmount;
                 dto.RemainingBalance = remainingBalance;
                 dto.PaymentStatus = DerivePaymentStatus(dto.TotalAmount, remainingBalance);
+                dto.BillableChargesTotal = dto.AdditionalCharges.Where(c => c.IsBillableToCompany).Sum(c => c.Amount);
+                dto.InternalChargesTotal = dto.AdditionalCharges.Where(c => !c.IsBillableToCompany).Sum(c => c.Amount);
             }
 
             return dtos;
@@ -559,8 +1072,26 @@ namespace BLL.Service
                             LineTotal = i.LineTotal,
                             IsFromFreezer = i.IsFromFreezer
                         })
+                        .ToList(),
+                    Charges = invoice.AdditionalCharges
+                        .OrderBy(c => c.Id)
+                        .Select(c => new InvoiceChargeDto
+                        {
+                            Id = c.Id,
+                            InvoiceId = c.InvoiceId,
+                            Description = c.Description,
+                            Quantity = c.Quantity,
+                            UnitPrice = c.UnitPrice,
+                            Amount = c.Amount,
+                            IsBillableToCompany = c.IsBillableToCompany,
+                            Notes = c.Notes
+                        })
                         .ToList()
                 });
+
+                var last = orders[^1];
+                last.BillableChargesTotal = last.Charges.Where(c => c.IsBillableToCompany).Sum(c => c.Amount);
+                last.InternalChargesTotal = last.Charges.Where(c => !c.IsBillableToCompany).Sum(c => c.Amount);
             }
 
             return orders;
@@ -576,11 +1107,18 @@ namespace BLL.Service
             return (paidAmount, invoice.TotalAmount - paidAmount - creditNotesTotal);
         }
 
+        // Final supply order amount = products subtotal
+        //   - item discounts - invoice discount
+        //   + billable additional charges
+        // Internal-only charges are tracked for cost but never billed.
         private static void RecalculateInvoiceTotals(Invoice invoice)
         {
             invoice.SubTotal = invoice.Items.Sum(x => x.Quantity * x.UnitPrice);
             invoice.ItemDiscountTotal = invoice.Items.Sum(x => x.LineDiscountAmount);
-            invoice.TotalAmount = invoice.SubTotal - invoice.ItemDiscountTotal - invoice.InvoiceDiscountAmount;
+            var billableCharges = invoice.AdditionalCharges == null
+                ? 0m
+                : invoice.AdditionalCharges.Where(c => c.IsBillableToCompany).Sum(c => c.Amount);
+            invoice.TotalAmount = invoice.SubTotal - invoice.ItemDiscountTotal - invoice.InvoiceDiscountAmount + billableCharges;
         }
 
         private static InvoicePaymentStatus DerivePaymentStatus(decimal totalAmount, decimal remainingBalance)
