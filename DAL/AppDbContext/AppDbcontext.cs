@@ -42,7 +42,12 @@ namespace DAL.AppDbContext
                 entity.Property(p => p.DefaultCartonWeightKg).HasPrecision(18, 3);
                 entity.Property(p => p.MaritimePricePerKg).HasPrecision(18, 2);
 
-                entity.Property(p => p.Category).HasDefaultValue(ProductCategory.RegularProduct);
+                entity.Property(p => p.Category)
+                      .HasDefaultValue(ProductCategory.RegularProduct)
+                      // The enum's lowest member doubles as the DB default; declaring
+                      // it as the sentinel removes EF validation warning 20601 while
+                      // keeping identical insert behavior (no migration needed).
+                      .HasSentinel(ProductCategory.RegularProduct);
             });
 
             // ==========================================
@@ -55,7 +60,8 @@ namespace DAL.AppDbContext
                 entity.Property(c => c.PhoneNumber).HasMaxLength(50);
                 entity.Property(c => c.Address).HasMaxLength(300);
 
-                entity.Property(c => c.Type).HasDefaultValue(CustomerType.WholesaleCustomer);
+                entity.Property(c => c.Type).HasDefaultValue(CustomerType.WholesaleCustomer)
+                .HasSentinel(CustomerType.WholesaleCustomer);
             });
 
             // ==========================================
