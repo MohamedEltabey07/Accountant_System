@@ -49,7 +49,25 @@
     .order-block-header {
         background: #eef2ff;
         border-bottom: 1px solid #94a3b8;
-        padding: 0.45rem 0.7rem;
+        padding: 0.5rem 0.85rem;
+    }
+
+    .order-title-prominent {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #1e3a8a;
+        background: #ffffff;
+        border: 1.5px solid #bfdbfe;
+        border-radius: 6px;
+        padding: 0.25rem 1rem;
+        display: inline-block;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        letter-spacing: 0.5px;
+    }
+
+    .order-title-prominent .order-external-no {
+        font-size: 1.30rem;
+        color: #0f172a;
     }
 
     .order-external-no {
@@ -162,6 +180,20 @@
         .order-block-footer {
             background: #ffffff !important;
             border-color: #94a3b8 !important;
+        }
+
+        .order-title-prominent {
+            font-size: 1.15rem !important;
+            border-color: #64748b !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            padding: 0.2rem 0.8rem !important;
+            box-shadow: none !important;
+        }
+
+        .order-title-prominent .order-external-no {
+            font-size: 1.20rem !important;
+            color: #000000 !important;
         }
 
         .order-block {
@@ -292,23 +324,35 @@
     @foreach (var order in supplyOrders)
     {
         <div class="order-block">
-            <!-- Order Header: EXTERNAL supply order number is the dominant identifier -->
-            <div class="order-block-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <div>
-                    <span class="text-muted small">أمر توريد:</span>
-                    <span class="order-external-no">@order.DisplayOrderNumber</span>
-                    @if (!string.IsNullOrWhiteSpace(order.ExternalOrderNumber) && !string.Equals(order.ExternalOrderNumber, order.InvoiceNumber, StringComparison.OrdinalIgnoreCase))
-                    {
-                        <span class="text-muted small ms-2">(مستند داخلي: @order.InvoiceNumber)</span>
-                    }
-                </div>
-                <div class="text-end">
-                    <span class="text-muted small">تاريخ أمر التوريد:</span>
-                    <strong class="ms-1">@((order.SupplyOrderDate ?? order.TransactionDate).ToString("yyyy-MM-dd"))</strong>
-                    @if (order.SupplyOrderDate.HasValue && order.SupplyOrderDate.Value.Date != order.TransactionDate.Date)
-                    {
-                        <span class="text-muted small ms-2">(تاريخ الترحيل: @order.TransactionDate.ToString("yyyy-MM-dd"))</span>
-                    }
+            <!-- Order Header: EXTERNAL supply order number is prominently centered -->
+            <div class="order-block-header">
+                <div class="row align-items-center g-2">
+                    <!-- Right: Internal document reference if applicable -->
+                    <div class="col-3 text-start">
+                        @if (!string.IsNullOrWhiteSpace(order.ExternalOrderNumber) && !string.Equals(order.ExternalOrderNumber, order.InvoiceNumber, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="badge bg-light text-dark border font-monospace" style="font-size: 0.76rem;">
+                                مستند داخلي: @order.InvoiceNumber
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Center: Prominent Big Font [ أمر توريد: 232716 ] -->
+                    <div class="col-6 text-center">
+                        <span class="order-title-prominent">
+                            [ أمر توريد: <span class="order-external-no">@order.DisplayOrderNumber</span> ]
+                        </span>
+                    </div>
+
+                    <!-- Left: Order Date -->
+                    <div class="col-3 text-end">
+                        <span class="text-muted small">تاريخ الأمر:</span>
+                        <strong class="font-tabular ms-1" style="font-size: 0.85rem;">@((order.SupplyOrderDate ?? order.TransactionDate).ToString("yyyy-MM-dd"))</strong>
+                        @if (order.SupplyOrderDate.HasValue && order.SupplyOrderDate.Value.Date != order.TransactionDate.Date)
+                        {
+                            <div class="text-muted" style="font-size: 0.68rem;">(ترحيل: @order.TransactionDate.ToString("yyyy-MM-dd"))</div>
+                        }
+                    </div>
                 </div>
             </div>
 
