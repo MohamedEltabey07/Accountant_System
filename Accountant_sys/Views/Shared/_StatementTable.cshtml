@@ -288,58 +288,69 @@
      THE PRACTICAL WORK STATEMENT SHEET (High-Density Print Ready)
      ========================================================================== -->
 <div class="statement-sheet">
+    @{
+        var isMaritime = Model.ControllerName == "MaritimeCompany" || Model.Lines.Any(l => l.DocumentType.Contains("توريد"));
+    }
 
-    <!-- 1. Compact Commercial Header Box (Takes only ~35mm vertical space) -->
+    <!-- 1. Compact Commercial Header Box -->
     <div class="statement-header-box">
         <div class="row align-items-center g-2">
             <!-- Merchant Brand (Right) -->
-            <div class="col-4">
-                <h6 class="fw-bold text-dark mb-0">المصري للتجارة والتوريدات</h6>
-                <div class="text-muted" style="font-size: 0.76rem;">Elmasry Trading & Supplies | إدارة الحسابات</div>
-                <div class="text-muted" style="font-size: 0.72rem;">س.ت: 104928 | ب.ض: 482-901-332 | هاتف: 01000000000</div>
+            <div class="col-3 text-start">
+                <h6 class="fw-bold text-dark mb-1" style="font-size: 0.95rem;">
+                    <i class="bi bi-building text-primary me-1"></i> المصري للتجارة والتوريدات
+                </h6>
+                <div class="text-muted" style="font-size: 0.74rem;">Elmasry Trading & Supplies</div>
+                <div class="text-muted" style="font-size: 0.70rem;">إدارة الحسابات العامة</div>
+                <div class="text-muted" style="font-size: 0.68rem;">س.ت: 104928 | ب.ض: 482-901-332</div>
             </div>
 
-            <!-- Statement Document Title (Center) -->
-            <div class="col-4 text-center">
-                <h6 class="fw-bold mb-0 text-dark">كشف حساب @(Model.PartyType == "Vendor" ? "مورد" : "عميل") تفصيلي</h6>
+            <!-- Center: Vendor / Customer / Trading Company Name (Big & Bold) + Document Type under it -->
+            <div class="col-6 text-center">
+                <div class="fw-bolder text-dark mb-1" style="font-size: 1.45rem; line-height: 1.25;">
+                    @Model.PartyName
+                </div>
+                <div class="fw-bold text-primary mb-1" style="font-size: 1.15rem; letter-spacing: 0.5px;">
+                    @if (isMaritime)
+                    {
+                        <span>[ أمر التوريد ]</span>
+                    }
+                    else if (Model.PartyType == "Vendor")
+                    {
+                        <span>[ كشف حساب مورد ]</span>
+                    }
+                    else
+                    {
+                        <span>[ كشف حساب عميل ]</span>
+                    }
+                </div>
                 <div class="text-muted" style="font-size: 0.74rem;">
-                    تاريخ الطباعة: <strong>@DateTime.Today.ToString("yyyy-MM-dd")</strong>
+                    @(isMaritime ? "كشف حساب أوامر التوريد" : (Model.PartyType == "Vendor" ? "كشف حساب المشتريات والتوريدات" : "كشف حساب المبيعات والمسحوبات"))
                 </div>
             </div>
 
             <!-- Code & Period (Left) -->
-            <div class="col-4 text-start">
-                <div class="d-inline-block text-end">
-                    <div style="font-size: 0.75rem;">
-                        كود الحساب: <strong class="text-primary font-monospace">#@Model.PartyType.ToUpper().Substring(0, 3)-@Model.PartyId.ToString("D4")</strong>
-                    </div>
-                    <div style="font-size: 0.74rem;" class="text-muted font-tabular">
-                        الفترة: 
-                        @if (Model.From.HasValue && Model.To.HasValue)
-                        {
-                            <span>@Model.From.Value.ToString("yyyy-MM-dd") إلى @Model.To.Value.ToString("yyyy-MM-dd")</span>
-                        }
-                        else
-                        {
-                            <span>كافة الحركات التاريخية</span>
-                        }
-                    </div>
+            <div class="col-3 text-end">
+                <div style="font-size: 0.75rem;">
+                    كود الحساب: <strong class="text-primary font-monospace">#@Model.PartyType.ToUpper().Substring(0, 3)-@Model.PartyId.ToString("D4")</strong>
                 </div>
-            </div>
-        </div>
-
-        <!-- Party Info Mini Bar -->
-        <div class="d-flex justify-content-between align-items-center border-top mt-1 pt-1" style="font-size: 0.80rem;">
-            <div>
-                <span class="text-muted">صاحب الحساب:</span>
-                <strong class="text-dark fs-6 ms-1">@Model.PartyName</strong>
-                <span class="badge bg-light text-dark border ms-1" style="font-size: 0.70rem;">
-                    @(Model.PartyType == "Vendor" ? "مورد بضائع ومشتريات" : "عميل مبيعات ومسحوبات")
-                </span>
-            </div>
-            <div>
-                <span class="text-muted">العملة:</span>
-                <strong class="text-dark">الجنيه المصري (ج.م)</strong>
+                <div style="font-size: 0.74rem;" class="text-muted font-tabular">
+                    الفترة: 
+                    @if (Model.From.HasValue && Model.To.HasValue)
+                    {
+                        <span>@Model.From.Value.ToString("yyyy-MM-dd") إلى @Model.To.Value.ToString("yyyy-MM-dd")</span>
+                    }
+                    else
+                    {
+                        <span>كافة الحركات التاريخية</span>
+                    }
+                </div>
+                <div class="text-muted" style="font-size: 0.72rem;">
+                    تاريخ الطباعة: <strong>@DateTime.Today.ToString("yyyy-MM-dd")</strong>
+                </div>
+                <div class="text-muted" style="font-size: 0.70rem;">
+                    العملة: <strong>الجنيه المصري (ج.م)</strong>
+                </div>
             </div>
         </div>
     </div>

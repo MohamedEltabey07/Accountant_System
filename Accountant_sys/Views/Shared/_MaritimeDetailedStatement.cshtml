@@ -195,20 +195,53 @@
     <!-- Commercial Header Box -->
     <div class="statement-header-box">
         <div class="row align-items-center g-2">
-            <div class="col-4">
-                <h6 class="fw-bold text-dark mb-0">المصري للتجارة والتوريدات</h6>
-                <div class="text-muted" style="font-size: 0.76rem;">Elmasry Trading & Supplies | إدارة الحسابات</div>
-            </div>
-            <div class="col-4 text-center">
-                <h6 class="fw-bold mb-0 text-dark">كشف حساب شركة بحرية — تفصيل أوامر التوريد</h6>
-                <div class="text-muted" style="font-size: 0.74rem;">
-                    الفترة: @Model.From?.ToString("yyyy-MM-dd") ← @Model.To?.ToString("yyyy-MM-dd")
+            <!-- Right: Our Company Branding -->
+            <div class="col-3 text-start">
+                <h6 class="fw-bold text-dark mb-1" style="font-size: 0.95rem;">
+                    <i class="bi bi-building text-primary me-1"></i> المصري للتجارة والتوريدات
+                </h6>
+                <div class="text-muted" style="font-size: 0.74rem;">Elmasry Trading & Supplies</div>
+                <div class="text-muted" style="font-size: 0.70rem;">إدارة الحسابات والتوريدات البحرية</div>
+                <div class="text-muted" style="font-size: 0.68rem;">
+                    <span><strong>س.ت:</strong> 104928</span> | <span><strong>ب.ض:</strong> 482-901-332</span>
                 </div>
-                <div class="text-muted" style="font-size: 0.72rem;">كود الحساب: CUS-@Model.PartyId.ToString("D4")</div>
             </div>
-            <div class="col-4 text-end">
-                <div class="fw-bold text-dark" style="font-size: 0.88rem;">@Model.PartyName</div>
-                <div class="text-muted" style="font-size: 0.72rem;">@(DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))</div>
+
+            <!-- Center: Trading Company / Client Name (Big & Bold) + [ أمر التوريد ] under it -->
+            <div class="col-6 text-center">
+                <div class="fw-bolder text-dark mb-1" style="font-size: 1.45rem; line-height: 1.25;">
+                    @Model.PartyName
+                </div>
+                <div class="fw-bold text-primary mb-1" style="font-size: 1.15rem; letter-spacing: 0.5px;">
+                    [ أمر التوريد ]
+                </div>
+                <div class="text-muted" style="font-size: 0.75rem;">
+                    كشف حساب تفصيلي لأوامر التوريد
+                </div>
+            </div>
+
+            <!-- Left: Metadata (Code, Period, Date) -->
+            <div class="col-3 text-end">
+                <div style="font-size: 0.75rem;">
+                    كود الحساب: <strong class="text-primary font-monospace">#CUS-@Model.PartyId.ToString("D4")</strong>
+                </div>
+                <div style="font-size: 0.74rem;" class="text-muted font-tabular">
+                    الفترة: 
+                    @if (Model.From.HasValue && Model.To.HasValue)
+                    {
+                        <span>@Model.From.Value.ToString("yyyy-MM-dd") إلى @Model.To.Value.ToString("yyyy-MM-dd")</span>
+                    }
+                    else
+                    {
+                        <span>كافة أوامر التوريد</span>
+                    }
+                </div>
+                <div class="text-muted" style="font-size: 0.72rem;">
+                    تاريخ الطباعة: <strong>@DateTime.Today.ToString("yyyy-MM-dd")</strong>
+                </div>
+                <div class="text-muted" style="font-size: 0.70rem;">
+                    العملة: <strong>الجنيه المصري (ج.م)</strong>
+                </div>
             </div>
         </div>
     </div>
@@ -231,8 +264,8 @@
                         <strong class="text-success font-tabular">@((Model.TotalPayments + Model.TotalReturns).ToString("N2")) ج.م</strong>
                     </td>
                     <td style="width: 20%;">
-                        <span class="d-block text-muted small">المخلفات للفترة</span>
-                        <strong class="font-tabular">@(Model.TotalInvoices - (Model.TotalPayments + Model.TotalReturns)).ToString("N2") ج.م</strong>
+                        <span class="d-block text-muted small">صافي حركات الفترة</span>
+                        <strong class="font-tabular">@((Model.TotalInvoices - (Model.TotalPayments + Model.TotalReturns)).ToString("N2")) ج.م</strong>
                     </td>
                     <td style="width: 20%;">
                         <span class="d-block text-muted small">الرصيد الختامي</span>
