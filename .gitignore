@@ -77,3 +77,8 @@ appsettings*.local.json
 .env
 .env.*
 !.env.example
+
+# Backups and temporary tools
+Backups/
+.opencode/
+*.bak

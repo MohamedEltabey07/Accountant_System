@@ -175,6 +175,12 @@
             margin: 0 !important;
         }
 
+        .col-freezer-flag,
+        th.col-freezer-flag,
+        td.col-freezer-flag {
+            display: none !important;
+        }
+
         .statement-header-box,
         .order-block-header,
         .order-block-footer {
@@ -245,9 +251,6 @@
                     @Model.PartyName
                 </div>
                 <div class="fw-bold text-primary mb-1" style="font-size: 1.15rem; letter-spacing: 0.5px;">
-                    [ أمر التوريد ]
-                </div>
-                <div class="text-muted" style="font-size: 0.75rem;">
                     كشف حساب تفصيلي لأوامر التوريد
                 </div>
             </div>
@@ -367,7 +370,7 @@
                             <th style="width: 90px;">سعر الكجم (ج.م)</th>
                             <th style="width: 90px;">الخصم (ج.م)</th>
                             <th style="width: 105px;">إجمالي البند (ج.م)</th>
-                            <th style="width: 95px;">من الثلاجة؟</th>
+                            <th style="width: 95px;" class="d-print-none col-freezer-flag">من الثلاجة؟</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -391,7 +394,7 @@
                                         @(item.LineDiscountAmount > 0 ? "-" + item.LineDiscountAmount.ToString("N2") : "-")
                                     </td>
                                     <td class="text-center font-tabular fw-bold">@item.LineTotal.ToString("N2")</td>
-                                    <td class="text-center">
+                                    <td class="text-center d-print-none col-freezer-flag">
                                         @if (item.IsFromFreezer)
                                         {
                                             <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:0.72rem;">نعم</span>
@@ -469,7 +472,7 @@
             <div class="order-block-footer d-flex justify-content-between align-items-center">
                 <span>إجمالي عدد البنود: @order.Items.Count</span>
                 <span>
-                    إجمالي أمر التوريد <span class="order-external-no">@order.DisplayOrderNumber</span>:
+                    إجمالي أمر التوريد:
                     <span class="font-tabular text-nowrap">@order.TotalAmount.ToString("N2") ج.م</span>
                     <span class="small fw-normal text-muted">(@Tafqeet.ToArabicWords(order.TotalAmount))</span>
                 </span>
