@@ -3,15 +3,12 @@
 @using BLL.Service
 @using BLL.DTOs.MaritimeCompany.OutGoingData
 @{
-    // Detailed maritime supply orders statement: every supply order is shown
-    // separately (header + full item list + prominent order total carrying the
-    // EXTERNAL supply order number). Financial lines other than the orders
-    // themselves (opening balance, receipts, refunds, credit-note returns) are
-    // listed below the orders, so both statement modes agree financially.
+    // Detailed maritime statement:
+    // 1. 4-Step Arithmetic Financial Strip (Beginning + Additions - Deductions = Ending).
+    // 2. Complete chronological sequence of ALL movements (Opening Balances,
+    //    Itemized Supply Orders with Charges, Receipts, Returns, Refunds) in exact order.
     var supplyOrders = ViewData["SupplyOrders"] as List<MaritimeSupplyOrderDto> ?? new List<MaritimeSupplyOrderDto>();
-    var financialLines = Model.Lines
-        .Where(l => !l.DocumentType.Contains("أمر توريد"))
-        .ToList();
+    var ordersById = supplyOrders.GroupBy(o => o.InvoiceId).ToDictionary(g => g.Key, g => g.First());
 }
 
 <style>
@@ -223,9 +220,41 @@
         <button type="button" class="btn btn-primary btn-sm shadow-sm fw-bold px-3" onclick="window.print()">
             <i class="bi bi-printer-fill me-1"></i> طباعة كشف الحساب (A4)
         </button>
+        <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.PartyId" class="btn btn-success btn-sm shadow-sm fw-bold">
+            <i class="bi bi-cash-stack me-1"></i> سند قبض
+        </a>
         <a asp-controller="MaritimeCompany" asp-action="Index" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-right me-1"></i> الشركات البحرية
         </a>
+    </div>
+</div>
+
+<!-- Date Range Filter Form (Screen Only) -->
+<div class="card shadow-sm border-0 mb-3 d-print-none">
+    <div class="card-body p-2 px-3">
+        <form method="get" asp-controller="MaritimeCompany" asp-action="Statement" class="row g-2 align-items-end">
+            <input type="hidden" name="id" value="@Model.PartyId" />
+            <input type="hidden" name="mode" value="@Model.Mode" />
+
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i> من تاريخ</label>
+                <input type="date" name="from" value="@(Model.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control form-control-sm" />
+            </div>
+
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i> إلى تاريخ</label>
+                <input type="date" name="to" value="@(Model.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control form-control-sm" />
+            </div>
+
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                    <i class="bi bi-funnel-fill me-1"></i> تحديث الفترة
+                </button>
+                <a asp-controller="MaritimeCompany" asp-action="Statement" asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> كل الحركات
+                </a>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -281,269 +310,224 @@
         </div>
     </div>
 
-    <!-- Financial Summary Strip (identical to the summary statement mode) -->
-    <div class="table-responsive mb-3">
-        <table class="table-statement table-light">
-            <tbody>
-                <tr>
-                    <td style="width: 20%;">
-                        <span class="d-block text-muted small">الرصيد الافتتاحي (قبل الفترة)</span>
-                        <strong class="font-tabular">@Math.Abs(Model.BeginningBalance).ToString("N2") ج.م @if (Model.BeginningBalance < 0) { <span class="text-info">(دائن له)</span> }</strong>
-                    </td>
-                    <td style="width: 20%;">
-                        <span class="d-block text-muted small">إجمالي أوامر التوريد (عليه)</span>
-                        <strong class="text-danger font-tabular">@Model.TotalInvoices.ToString("N2") ج.م</strong>
-                    </td>
-                    <td style="width: 20%;">
-                        <span class="d-block text-muted small">إجمالي المدفوع والمردود (له)</span>
-                        <strong class="text-success font-tabular">@((Model.TotalPayments + Model.TotalReturns).ToString("N2")) ج.م</strong>
-                    </td>
-                    <td style="width: 20%;">
-                        <span class="d-block text-muted small">صافي حركات الفترة</span>
-                        <strong class="font-tabular">@((Model.TotalInvoices - (Model.TotalPayments + Model.TotalReturns)).ToString("N2")) ج.م</strong>
-                    </td>
-                    <td style="width: 20%;">
-                        <span class="d-block text-muted small">الرصيد الختامي</span>
-                        <strong class="text-dark font-tabular">@Math.Abs(Model.EndingBalance).ToString("N2") ج.م @(Model.EndingBalance < 0 ? "(دائن له)" : "(لنا عليه)")</strong>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+    <!-- Financial Summary Equation (identical to summary statement mode) -->
+    <partial name="_StatementFormulaStrip" model="Model" />
+
+    <!-- Chronological Detailed Statement: every movement in the exact summary order -->
+    <div class="d-flex justify-content-between align-items-center mb-2 mt-2 flex-wrap gap-2">
+        <h6 class="fw-bold text-dark mb-0">
+            <i class="bi bi-ship text-primary me-1"></i>
+            تفاصيل أوامر التوريد والمدفوعات والحركات (بالترتيب الزمني)
+        </h6>
+        <span class="badge bg-light text-muted border font-tabular" style="font-size: 0.74rem;">
+            إجمالي العمليات: @Model.Lines.Count
+        </span>
     </div>
 
-    <!-- Supply Orders: one independent block per order -->
-    <h6 class="fw-bold text-dark mb-2">
-        <i class="bi bi-ship text-primary me-1"></i> أوامر التوريد المرحلة خلال الفترة
-    </h6>
+    <partial name="_StatementCarryForwardCard" model="Model" />
 
-    @if (!supplyOrders.Any())
+    @if (!Model.Lines.Any())
     {
         <div class="text-center py-4 text-muted border rounded-3 mb-3">
             <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
-            لا توجد أوامر توريد مرحّلة خلال الفترة المحددة.
+            لا توجد أي حركات مالية مسجلة خلال الفترة المحددة.
         </div>
     }
-
-    @foreach (var order in supplyOrders)
+    else
     {
-        <div class="order-block">
-            <!-- Order Header: EXTERNAL supply order number is prominently centered -->
-            <div class="order-block-header">
-                <div class="row align-items-center g-2">
-                    <!-- Right: Internal document reference if applicable -->
-                    <div class="col-3 text-start">
-                        @if (!string.IsNullOrWhiteSpace(order.ExternalOrderNumber) && !string.Equals(order.ExternalOrderNumber, order.InvoiceNumber, StringComparison.OrdinalIgnoreCase))
-                        {
-                            <span class="badge bg-light text-dark border font-monospace" style="font-size: 0.76rem;">
-                                مستند داخلي: @order.InvoiceNumber
-                            </span>
-                        }
-                    </div>
-
-                    <!-- Center: Prominent Big Font [ أمر توريد: 232716 ] -->
-                    <div class="col-6 text-center">
-                        <span class="order-title-prominent">
-                            [ أمر توريد: <span class="order-external-no">@order.DisplayOrderNumber</span> ]
-                        </span>
-                    </div>
-
-                    <!-- Left: Order Date -->
-                    <div class="col-3 text-end">
-                        <span class="text-muted small">تاريخ الأمر:</span>
-                        <strong class="font-tabular ms-1" style="font-size: 0.85rem;">@((order.SupplyOrderDate ?? order.TransactionDate).ToString("yyyy-MM-dd"))</strong>
-                        @if (order.SupplyOrderDate.HasValue && order.SupplyOrderDate.Value.Date != order.TransactionDate.Date)
-                        {
-                            <div class="text-muted" style="font-size: 0.68rem;">(ترحيل: @order.TransactionDate.ToString("yyyy-MM-dd"))</div>
-                        }
-                    </div>
-                </div>
-            </div>
-
-            <!-- Order Items -->
-            <div class="table-responsive">
-                <table class="table-statement">
-                    <thead>
-                        <tr>
-                            <th style="width: 35px;">#</th>
-                            <th class="text-start">اسم الصنف</th>
-                            <th style="width: 95px;">الوزن المطلوب (كجم)</th>
-                            <th style="width: 90px;">سعر الكجم (ج.م)</th>
-                            <th style="width: 90px;">الخصم (ج.م)</th>
-                            <th style="width: 105px;">إجمالي البند (ج.م)</th>
-                            <th style="width: 95px;" class="d-print-none col-freezer-flag">من الثلاجة؟</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (!order.Items.Any())
-                        {
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-3">لا توجد بنود على هذا الأمر.</td>
-                            </tr>
-                        }
-                        else
-                        {
-                            var itemIdx = 1;
-                            foreach (var item in order.Items)
-                            {
-                                <tr>
-                                    <td class="text-center text-muted fw-bold">@(itemIdx++)</td>
-                                    <td class="text-start fw-bold text-dark">@item.ProductName</td>
-                                    <td class="text-center font-tabular">@item.Quantity.ToString("N3")</td>
-                                    <td class="text-center font-tabular">@item.UnitPrice.ToString("N2")</td>
-                                    <td class="text-center font-tabular @(item.LineDiscountAmount > 0 ? "text-danger" : "text-muted")">
-                                        @(item.LineDiscountAmount > 0 ? "-" + item.LineDiscountAmount.ToString("N2") : "-")
-                                    </td>
-                                    <td class="text-center font-tabular fw-bold">@item.LineTotal.ToString("N2")</td>
-                                    <td class="text-center d-print-none col-freezer-flag">
-                                        @if (item.IsFromFreezer)
-                                        {
-                                            <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:0.72rem;">نعم</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.72rem;">لا</span>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-            </div>
-
-            @if (order.HasCharges)
+        var seq = 0;
+        foreach (var line in Model.Lines)
+        {
+            seq++;
+            var kind = StatementBuilder.ResolveLineKind(line, isVendor: false);
+            if (kind == StatementLineKind.MaritimeSupplyOrder && line.DocumentId.HasValue && ordersById.TryGetValue(line.DocumentId.Value, out var order))
             {
-                <!-- Order Additional Charges -->
-                <div class="table-responsive">
-                    <table class="table-statement" style="table-layout: fixed;">
-                        <thead>
-                            <tr style="background-color:#475569 !important; border-color:#475569;">
-                                <th style="width: 35px;">#</th>
-                                <th class="text-start">مصروف / تكلفة إضافية</th>
-                                <th style="width: 80px;">الكمية</th>
-                                <th style="width: 90px;">سعر الوحدة</th>
-                                <th style="width: 100px;">القيمة (ج.م)</th>
-                                <th style="width: 130px;">محتسب على الشركة؟</th>
-                                <th class="text-start">ملاحظات</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @{
-                                var chargeIdx = 1;
-                                foreach (var charge in order.Charges)
+                var ordBalanceTag = StatementBuilder.FormatBalanceTag(line.RunningBalance, isVendor: false);
+                var ordBalanceColor = Math.Abs(line.RunningBalance) < 0.005m
+                    ? "text-success"
+                    : (line.RunningBalance > 0 ? "text-danger" : "text-info");
+
+                <div class="order-block" id="doc-card-@order.InvoiceId">
+                    <!-- Order Header: EXTERNAL supply order number is prominently centered -->
+                    <div class="order-block-header">
+                        <div class="row align-items-center g-2">
+                            <!-- Right: sequence + Internal document reference if applicable -->
+                            <div class="col-3 text-start">
+                                <span class="badge bg-dark text-white me-1 font-tabular" style="font-size: 0.74rem;">#@seq</span>
+                                @if (!string.IsNullOrWhiteSpace(order.ExternalOrderNumber) && !string.Equals(order.ExternalOrderNumber, order.InvoiceNumber, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span class="badge bg-light text-dark border font-monospace" style="font-size: 0.76rem;">
+                                        مستند داخلي: @order.InvoiceNumber
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-dark border" style="font-size: 0.76rem;">
+                                        أمر توريد بحري
+                                    </span>
+                                }
+                            </div>
+
+                            <!-- Center: Prominent Big Font [ أمر توريد: 232716 ] -->
+                            <div class="col-6 text-center">
+                                <span class="order-title-prominent">
+                                    [ أمر توريد: <span class="order-external-no">@order.DisplayOrderNumber</span> ]
+                                </span>
+                            </div>
+
+                            <!-- Left: Order Date -->
+                            <div class="col-3 text-end">
+                                <span class="text-muted small">تاريخ الأمر:</span>
+                                <strong class="font-tabular ms-1" style="font-size: 0.85rem;">@((order.SupplyOrderDate ?? order.TransactionDate).ToString("yyyy-MM-dd"))</strong>
+                                @if (order.SupplyOrderDate.HasValue && order.SupplyOrderDate.Value.Date != order.TransactionDate.Date)
+                                {
+                                    <div class="text-muted" style="font-size: 0.68rem;">(ترحيل: @order.TransactionDate.ToString("yyyy-MM-dd"))</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Items -->
+                    <div class="table-responsive">
+                        <table class="table-statement">
+                            <thead>
+                                <tr>
+                                    <th style="width: 35px;">#</th>
+                                    <th class="text-start">اسم الصنف</th>
+                                    <th style="width: 95px;">الوزن المطلوب (كجم)</th>
+                                    <th style="width: 90px;">سعر الكجم (ج.م)</th>
+                                    <th style="width: 90px;">الخصم (ج.م)</th>
+                                    <th style="width: 105px;">إجمالي البند (ج.م)</th>
+                                    <th style="width: 95px;" class="d-print-none col-freezer-flag">من الثلاجة؟</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!order.Items.Any())
                                 {
                                     <tr>
-                                        <td class="text-center text-muted fw-bold">@(chargeIdx++)</td>
-                                        <td class="text-start fw-bold text-dark">@charge.Description</td>
-                                        <td class="text-center font-tabular">@(charge.Quantity.HasValue ? charge.Quantity.Value.ToString("N3") : "-")</td>
-                                        <td class="text-center font-tabular">@(charge.UnitPrice.HasValue ? charge.UnitPrice.Value.ToString("N2") : "-")</td>
-                                        <td class="text-center font-tabular fw-bold">@charge.Amount.ToString("N2")</td>
-                                        <td class="text-center">
-                                            @if (charge.IsBillableToCompany)
-                                            {
-                                                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" style="font-size: 0.72rem;">محتسب على الشركة</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle" style="font-size: 0.72rem;">مصروف داخلي</span>
-                                            }
-                                        </td>
-                                        <td class="text-start small text-muted">@(string.IsNullOrWhiteSpace(charge.Notes) ? "-" : charge.Notes)</td>
+                                        <td colspan="7" class="text-center text-muted py-3">لا توجد بنود على هذا الأمر.</td>
                                     </tr>
                                 }
-                            }
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="4" class="text-end">إجمالي المحتسب على الشركة / إجمالي المصاريف:</td>
-                                <td class="text-center">
-                                    <span class="fw-bold text-danger font-tabular">@order.BillableChargesTotal.ToString("N2")</span>
-                                    <span class="mx-1">/</span>
-                                    <span class="fw-bold font-tabular">@((order.BillableChargesTotal + order.InternalChargesTotal).ToString("N2"))</span>
-                                </td>
-                                <td colspan="2" class="text-muted small text-end">المحتسب على الشركة يُدرج في الإجمالي المذكور أعلاه</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                                else
+                                {
+                                    var itemIdx = 1;
+                                    foreach (var item in order.Items)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted fw-bold">@(itemIdx++)</td>
+                                            <td class="text-start fw-bold text-dark">@item.ProductName</td>
+                                            <td class="text-center font-tabular">@item.Quantity.ToString("N3")</td>
+                                            <td class="text-center font-tabular">@item.UnitPrice.ToString("N2")</td>
+                                            <td class="text-center font-tabular @(item.LineDiscountAmount > 0 ? "text-danger" : "text-muted")">
+                                                @(item.LineDiscountAmount > 0 ? "-" + item.LineDiscountAmount.ToString("N2") : "-")
+                                            </td>
+                                            <td class="text-center font-tabular fw-bold">@item.LineTotal.ToString("N2")</td>
+                                            <td class="text-center d-print-none col-freezer-flag">
+                                                @if (item.IsFromFreezer)
+                                                {
+                                                    <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:0.72rem;">نعم</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.72rem;">لا</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (order.HasCharges)
+                    {
+                        <!-- Order Additional Charges -->
+                        <div class="table-responsive">
+                            <table class="table-statement" style="table-layout: fixed;">
+                                <thead>
+                                    <tr style="background-color:#475569 !important; border-color:#475569;">
+                                        <th style="width: 35px;">#</th>
+                                        <th class="text-start">مصروف / تكلفة إضافية</th>
+                                        <th style="width: 80px;">الكمية</th>
+                                        <th style="width: 90px;">سعر الوحدة</th>
+                                        <th style="width: 100px;">القيمة (ج.م)</th>
+                                        <th style="width: 130px;">محتسب على الشركة؟</th>
+                                        <th class="text-start">ملاحظات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{
+                                        var chargeIdx = 1;
+                                        foreach (var charge in order.Charges)
+                                        {
+                                            <tr>
+                                                <td class="text-center text-muted fw-bold">@(chargeIdx++)</td>
+                                                <td class="text-start fw-bold text-dark">@charge.Description</td>
+                                                <td class="text-center font-tabular">@(charge.Quantity.HasValue ? charge.Quantity.Value.ToString("N3") : "-")</td>
+                                                <td class="text-center font-tabular">@(charge.UnitPrice.HasValue ? charge.UnitPrice.Value.ToString("N2") : "-")</td>
+                                                <td class="text-center font-tabular fw-bold">@charge.Amount.ToString("N2")</td>
+                                                <td class="text-center">
+                                                    @if (charge.IsBillableToCompany)
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle" style="font-size: 0.72rem;">محتسب على الشركة</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle" style="font-size: 0.72rem;">مصروف داخلي</span>
+                                                    }
+                                                </td>
+                                                <td class="text-start small text-muted">@(string.IsNullOrWhiteSpace(charge.Notes) ? "-" : charge.Notes)</td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="4" class="text-end">إجمالي المحتسب على الشركة / إجمالي المصاريف:</td>
+                                        <td class="text-center">
+                                            <span class="fw-bold text-danger font-tabular">@order.BillableChargesTotal.ToString("N2")</span>
+                                            <span class="mx-1">/</span>
+                                            <span class="fw-bold font-tabular">@((order.BillableChargesTotal + order.InternalChargesTotal).ToString("N2"))</span>
+                                        </td>
+                                        <td colspan="2" class="text-muted small text-end">المحتسب على الشركة يُدرج في الإجمالي المذكور أعلاه</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+
+                    <!-- Order Total + Running Balance after this order -->
+                    <div class="order-block-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span>إجمالي عدد البنود: @order.Items.Count</span>
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <span>
+                                إجمالي أمر التوريد:
+                                <span class="font-tabular text-nowrap">@order.TotalAmount.ToString("N2") ج.م</span>
+                                <span class="small fw-normal text-muted">(@Tafqeet.ToArabicWords(order.TotalAmount))</span>
+                            </span>
+                            <span class="badge bg-white text-dark border px-2 py-1 font-tabular" style="font-size: 0.78rem;">
+                                الرصيد بعد الأمر:
+                                <strong class="@ordBalanceColor ms-1">@Math.Abs(line.RunningBalance).ToString("N2") ج.م @ordBalanceTag</strong>
+                            </span>
+                        </div>
+                    </div>
                 </div>
             }
-
-            <!-- Order Total: the EXTERNAL number must appear next to every order total -->
-            <div class="order-block-footer d-flex justify-content-between align-items-center">
-                <span>إجمالي عدد البنود: @order.Items.Count</span>
-                <span>
-                    إجمالي أمر التوريد:
-                    <span class="font-tabular text-nowrap">@order.TotalAmount.ToString("N2") ج.م</span>
-                    <span class="small fw-normal text-muted">(@Tafqeet.ToArabicWords(order.TotalAmount))</span>
-                </span>
-            </div>
-        </div>
+            else
+            {
+                var cardViewData = new ViewDataDictionary(ViewData)
+                {
+                    ["IsVendor"] = false,
+                    ["IsMaritime"] = true,
+                    ["SequenceNumber"] = seq
+                };
+                <partial name="_StatementMovementCard" model="line" view-data="cardViewData" />
+            }
+        }
     }
 
-    <!-- Other Financial Lines: opening balance, receipts, refunds and credit-note returns -->
-    <h6 class="fw-bold text-dark mt-4 mb-2">
-        <i class="bi bi-cash-stack text-success me-1"></i> الحركات المالية والمرتجعات خلال الفترة
-    </h6>
-    <div class="table-responsive mb-2">
-        <table class="table-statement" id="statementLedgerTable">
-            <thead>
-                <tr>
-                    <th style="width: 35px;">#</th>
-                    <th style="width: 90px;">التاريخ</th>
-                    <th class="text-start">البيان والمعاملة</th>
-                    <th style="width: 120px;">رقم المستند</th>
-                    <th style="width: 105px;">عليه (مبيعات +)</th>
-                    <th style="width: 105px;">له (سدادات -)</th>
-                    <th style="width: 120px;">الرصيد المتبقي</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (!financialLines.Any())
-                {
-                    <tr>
-                        <td colspan="7" class="text-center py-3 text-muted">لا توجد حركات مالية خلال الفترة المحددة.</td>
-                    </tr>
-                }
-                else
-                {
-                    int lineIdx = 1;
-                    foreach (var line in financialLines)
-                    {
-                        <tr>
-                            <td class="text-center text-muted fw-bold font-tabular">@(lineIdx++)</td>
-                            <td class="text-center font-tabular">@line.Date.ToString("yyyy-MM-dd")</td>
-                            <td class="text-start">@line.DocumentType</td>
-                            <td class="text-center font-monospace fw-bold text-dark" style="font-size: 0.80rem;">
-                                @line.DocumentNo
-                                @if (!string.IsNullOrWhiteSpace(line.SecondaryDocNo))
-                                {
-                                    <div class="small text-muted fw-normal" style="font-size: 0.68rem;">(@line.SecondaryDocNo)</div>
-                                }
-                            </td>
-                            <td class="text-center font-tabular @(line.Debit > 0 ? "text-danger fw-bold" : "text-muted")">
-                                @(line.Debit > 0 ? line.Debit.ToString("N2") : "-")
-                            </td>
-                            <td class="text-center font-tabular @(line.Credit > 0 ? "text-success fw-bold" : "text-muted")">
-                                @(line.Credit > 0 ? line.Credit.ToString("N2") : "-")
-                            </td>
-                            <td class="text-center font-tabular fw-bold text-dark">@Math.Abs(line.RunningBalance).ToString("N2")</td>
-                        </tr>
-                    }
-                }
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="4" class="fw-bold text-end">الإجمالي والرصيد الختامي:</td>
-                    <td class="text-center fw-bold text-danger font-tabular">@Model.TotalInvoices.ToString("N2")</td>
-                    <td class="text-center fw-bold text-success font-tabular">@((Model.TotalPayments + Model.TotalReturns).ToString("N2"))</td>
-                    <td class="text-center fw-bold text-dark font-tabular">@Math.Abs(Model.EndingBalance).ToString("N2") ج.م</td>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
-
     <!-- Tafqeet Strip -->
-    <div class="statement-tafqeet-box d-flex justify-content-between align-items-center flex-wrap gap-1">
+    <div class="statement-tafqeet-box d-flex justify-content-between align-items-center flex-wrap gap-1 mt-3">
         <div>
             <span class="text-muted fw-bold">الرصيد المتبقي كتابةً:</span>
             <strong class="text-dark ms-1">
@@ -558,7 +542,7 @@
             </strong>
         </div>
         <span class="badge bg-white text-dark border px-2 py-1 font-tabular" style="font-size: 0.72rem;">
-            عدد أوامر التوريد بالفترة: @supplyOrders.Count
+            عدد أوامر التوريد: @supplyOrders.Count | إجمالي العمليات: @Model.Lines.Count
         </span>
     </div>
 
@@ -578,13 +562,5 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
-
-<!-- Client-Side Quick Search (Screen Only) -->
-<div class="d-print-none mt-2">
-    <div class="input-group input-group-sm" style="max-width: 350px;">
-        <span class="input-group-text bg-white border-end-0 py-0"><i class="bi bi-search text-muted small"></i></span>
-        <input type="text" class="form-control form-control-sm border-start-0 py-1" placeholder="بحث سريع في الحركات..." data-table-search="statementLedgerTable" />
     </div>
 </div>

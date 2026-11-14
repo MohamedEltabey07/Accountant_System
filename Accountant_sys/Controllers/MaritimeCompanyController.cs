@@ -98,8 +98,8 @@ namespace Accountant_sys.Controllers
 
             ViewBag.SelectedCompanyId = company.Id;
 
-            var fromDate = from ?? DateTime.Today.AddYears(-10);
-            var toDate = to ?? DateTime.Today;
+            var fromDate = from ?? StatementBuilder.HistoryStart;
+            var toDate = to ?? StatementBuilder.HistoryEnd;
 
             var ledger = await BuildMaritimeLedgerAsync(id.Value, fromDate, toDate);
             var model = StatementBuilder.Build(ledger, isVendor: false, company.Id, company.Name, "MaritimeCompany", from, to);
@@ -110,7 +110,7 @@ namespace Accountant_sys.Controllers
             // invoices the summary ledger is built from.
             if (ViewBag.Mode == "detailed")
             {
-                ViewBag.SupplyOrders = await _invoiceService.GetMaritimeSupplyOrdersAsync(company.Id, fromDate, toDate)
+                ViewBag.SupplyOrders = await _invoiceService.GetMaritimeSupplyOrdersAsync(company.Id, from, to)
                     ?? new List<BLL.DTOs.MaritimeCompany.OutGoingData.MaritimeSupplyOrderDto>();
             }
 
@@ -120,7 +120,7 @@ namespace Accountant_sys.Controllers
         private async Task<List<StatementLine>> BuildMaritimeLedgerAsync(int companyId, DateTime from, DateTime to)
         {
             var lines = new List<StatementLine>();
-            var historyStart = new DateTime(2000, 1, 1);
+            var historyStart = StatementBuilder.HistoryStart;
 
             var openings = await _openingBalanceService.GetAllOpeningBalancesAsync() ?? new List<OpeningBalanceDto>();
             var opening = openings.FirstOrDefault(o => o.CustomerId == companyId && o.VendorId == null);
@@ -129,8 +129,14 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = opening.EffectiveDate,
+                    Timestamp = opening.CreatedAt,
+                    SortGroup = 0,
+                    Kind = StatementLineKind.OpeningBalance,
+                    DocumentId = opening.Id,
                     DocumentNo = "OP" + opening.Id.ToString("D4"),
                     DocumentType = "رصيد افتتاحي",
+                    Description = StatementBuilder.FormatOpeningDescription(opening),
+                    Notes = opening.Notes,
                     Debit = opening.Amount
                 });
             }
@@ -140,20 +146,20 @@ namespace Accountant_sys.Controllers
             var companySupplies = supplies.Where(i => i.CustomerId == companyId).ToList();
             foreach (var supply in companySupplies)
             {
-                // The external supply order number is the identifier the
-                // maritime company uses to reconcile its orders — it must be
-                // visible next to every order's date and amount. The internal
-                // MAR-#### document number stays visible as a secondary label.
                 var externalNo = string.IsNullOrWhiteSpace(supply.ExternalOrderNumber)
                     ? supply.InvoiceNumber
                     : supply.ExternalOrderNumber;
                 lines.Add(new StatementLine
                 {
                     Date = supply.TransactionDate,
+                    Timestamp = supply.CreatedAt,
+                    Kind = StatementLineKind.MaritimeSupplyOrder,
                     DocumentId = supply.Id,
                     DocumentNo = externalNo,
                     SecondaryDocNo = string.IsNullOrWhiteSpace(supply.ExternalOrderNumber) ? null : supply.InvoiceNumber,
                     DocumentType = "أمر توريد بحري (مبيعات)",
+                    Description = StatementBuilder.FormatInvoiceDescription(supply, isVendor: false, isMaritime: true),
+                    Notes = supply.Notes,
                     Debit = supply.TotalAmount
                 });
             }
@@ -167,9 +173,14 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = note.TransactionDate,
+                    Timestamp = note.CreatedAt,
+                    Kind = StatementLineKind.CreditNoteReturn,
                     DocumentId = note.Id,
                     DocumentNo = note.CreditNoteNumber,
                     DocumentType = "إشعار مرتجع (مسترد)",
+                    Description = StatementBuilder.FormatCreditNoteDescription(note),
+                    Notes = note.Reason,
+                    CreditNote = note,
                     Credit = note.TotalAmount
                 });
             }
@@ -182,9 +193,14 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = payment.TransactionDate,
+                    Timestamp = payment.CreatedAt,
+                    Kind = StatementLineKind.CustomerReceipt,
                     DocumentId = payment.Id,
                     DocumentNo = "REC" + payment.Id.ToString("D6"),
                     DocumentType = "سند دفعة مستلمة (بحري)",
+                    Description = StatementBuilder.FormatPaymentDescription(payment, isVendor: false),
+                    Notes = payment.Notes,
+                    CashTransaction = payment,
                     Credit = payment.Amount
                 });
             }
@@ -197,9 +213,14 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = refund.TransactionDate,
+                    Timestamp = refund.CreatedAt,
+                    Kind = StatementLineKind.CustomerRefund,
                     DocumentId = refund.Id,
                     DocumentNo = "RFD" + refund.Id.ToString("D6"),
                     DocumentType = "سند مرتجع نقدي (مردود للشركة)",
+                    Description = string.IsNullOrWhiteSpace(refund.Notes) ? "رد نقدي للشركة البحرية" : refund.Notes.Trim(),
+                    Notes = refund.Notes,
+                    CashTransaction = refund,
                     Debit = refund.Amount
                 });
             }

@@ -27,6 +27,54 @@ namespace BLL.Service
             _productService = productService;
         }
 
+        public async Task<List<StatementInvoiceDetailDto>> GetPostedInvoiceDetailsAsync(
+            InvoiceType type,
+            int? customerId,
+            int? vendorId,
+            DateTime? from,
+            DateTime? to)
+        {
+            var invoices = await _unitOfWork.InvoiceRepo.GetPostedInvoicesWithItemsAsync(type, customerId, vendorId);
+
+            var fromDate = from?.Date;
+            var toDateExclusive = to?.Date.AddDays(1);
+
+            if (fromDate.HasValue)
+                invoices = invoices.Where(i => i.TransactionDate >= fromDate.Value).ToList();
+
+            if (toDateExclusive.HasValue)
+                invoices = invoices.Where(i => i.TransactionDate < toDateExclusive.Value).ToList();
+
+            return invoices.Select(inv => new StatementInvoiceDetailDto
+            {
+                InvoiceId = inv.Id,
+                InvoiceNumber = inv.InvoiceNumber,
+                TransactionDate = inv.TransactionDate,
+                CustomerId = inv.CustomerId,
+                VendorId = inv.VendorId,
+                PartyName = inv.Customer?.Name ?? inv.Vendor?.Name ?? string.Empty,
+                SubTotal = inv.SubTotal,
+                ItemDiscountTotal = inv.ItemDiscountTotal,
+                InvoiceDiscountAmount = inv.InvoiceDiscountAmount,
+                TotalAmount = inv.TotalAmount,
+                Notes = inv.Notes,
+                Items = inv.Items
+                    .OrderBy(it => it.Id)
+                    .Select(it => new StatementInvoiceItemDto
+                    {
+                        ProductId = it.ProductId,
+                        ProductName = !string.IsNullOrWhiteSpace(it.ProductName)
+                            ? it.ProductName
+                            : (it.Product?.Name ?? string.Empty),
+                        Quantity = it.Quantity,
+                        UnitPrice = it.UnitPrice,
+                        LineDiscountAmount = it.LineDiscountAmount,
+                        LineTotal = it.LineTotal
+                    })
+                    .ToList()
+            }).ToList();
+        }
+
         public async Task<int> CreateDraftInvoiceAsync(CreateInvoiceDraftDto dto)
         {
             if (dto == null) return 0;

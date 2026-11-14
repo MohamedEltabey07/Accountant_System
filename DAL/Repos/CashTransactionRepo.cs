@@ -36,6 +36,10 @@ namespace DAL.Repos
                 .Include(v => v.Vendor)
                 .Include(e => e.ExpenseCategory)
                 .Include(s => s.SourceInvoice)
+                .Include(p => p.PaymentAllocations)
+                    .ThenInclude(pa => pa.Invoice)
+                .Where(i => i.ReversalOfTransactionId == null
+                    && !_context.CashTransactions.Any(r => r.ReversalOfTransactionId == i.Id))
                 .AsQueryable();
 
             if (fromDate.HasValue)
@@ -54,8 +58,9 @@ namespace DAL.Repos
                 query = query.Where(i => i.Direction == direction.Value);
 
             return await query
-                .OrderByDescending(i => i.TransactionDate)
-                .ThenByDescending(i => i.Id)
+                .OrderBy(i => i.TransactionDate)
+                .ThenBy(i => i.CreatedAt)
+                .ThenBy(i => i.Id)
                 .AsNoTracking()
                 .ToListAsync();
         }

@@ -1,0 +1,506 @@
+@model Accountant_sys.Models.StatementViewModel
+@using System.Globalization
+@using BLL.Service
+@using BLL.DTOs.Invoice.OutGoingData
+@{
+    // Detailed Customer / Vendor Account Statement:
+    // 1. 4-Step Arithmetic Financial Strip (Beginning + Additions - Deductions = Ending).
+    // 2. Complete chronological sequence of ALL movements in the exact same order
+    //    as the summary ledger (Opening Balances, Itemized Invoices, Payments,
+    //    Credit-Note Returns, and Cash Refunds), without duplicating the summary table.
+    var isVendor = Model.PartyType == "Vendor";
+    var invoices = ViewData["DetailedInvoices"] as List<StatementInvoiceDetailDto> ?? new List<StatementInvoiceDetailDto>();
+    var invoicesById = invoices.GroupBy(i => i.InvoiceId).ToDictionary(g => g.Key, g => g.First());
+    var partyLabel = isVendor ? "المورد" : "العميل";
+    var accountCodePrefix = isVendor ? "VEN-" : "CUS-";
+}
+
+<style>
+    /* Detailed Customer/Vendor Statement (A4, print ready) */
+    @@page {
+        size: A4 portrait;
+        margin: 0 !important;
+    }
+
+    .statement-sheet {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+        border: 1px solid #e2e8f0;
+        padding: 1.25rem;
+    }
+
+    .statement-header-box {
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #f8fafc;
+        padding: 0.65rem 0.85rem;
+        margin-bottom: 0.65rem;
+    }
+
+    .order-block {
+        border: 1.5px solid #94a3b8;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        overflow: hidden;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .order-block-header {
+        background: #eef2ff;
+        border-bottom: 1px solid #94a3b8;
+        padding: 0.5rem 0.85rem;
+    }
+
+    .order-title-prominent {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: #1e3a8a;
+        background: #ffffff;
+        border: 1.5px solid #bfdbfe;
+        border-radius: 6px;
+        padding: 0.25rem 1rem;
+        display: inline-block;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        letter-spacing: 0.5px;
+    }
+
+    .order-title-prominent .order-external-no {
+        font-family: monospace;
+        font-weight: 800;
+        font-size: 1.25rem;
+        color: #0f172a;
+        letter-spacing: 0.02em;
+    }
+
+    .order-block-footer {
+        background: #f1f5f9;
+        border-top: 1.5px solid #64748b;
+        padding: 0.45rem 0.7rem;
+        font-weight: 800;
+        font-size: 0.88rem;
+        color: #0f172a;
+    }
+
+    .table-statement {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.84rem;
+    }
+
+        .table-statement thead {
+            display: table-header-group;
+        }
+
+        .table-statement th {
+            background-color: #1e293b !important;
+            color: #ffffff !important;
+            font-weight: 700;
+            font-size: 0.80rem;
+            padding: 0.45rem 0.5rem;
+            border: 1px solid #1e293b;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .table-statement td {
+            padding: 0.38rem 0.5rem;
+            border: 1px solid #cbd5e1;
+            vertical-align: middle;
+            line-height: 1.3;
+        }
+
+        .table-statement tfoot td {
+            background-color: #f1f5f9 !important;
+            font-weight: 700;
+            padding: 0.40rem 0.5rem;
+            border: 1px solid #cbd5e1;
+        }
+
+    .statement-tafqeet-box {
+        padding: 0.5rem 0.65rem;
+        background: #f8fafc;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.80rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .statement-signatures {
+        padding-top: 0.5rem;
+        border-top: 1px solid #cbd5e1;
+    }
+
+    @@media print {
+        html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 9.5pt !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .d-print-none,
+        .sidebar,
+        .top-navbar,
+        header,
+        .btn,
+        .alert,
+        .form-control {
+            display: none !important;
+        }
+
+        .main-content,
+        .content-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+        }
+
+        .statement-sheet {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 8mm 10mm !important;
+            margin: 0 !important;
+        }
+
+        .statement-header-box,
+        .order-block-header,
+        .order-block-footer {
+            background: #ffffff !important;
+            border-color: #94a3b8 !important;
+        }
+
+        .order-title-prominent {
+            font-size: 1.15rem !important;
+            border-color: #64748b !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            padding: 0.2rem 0.8rem !important;
+            box-shadow: none !important;
+        }
+
+        .order-title-prominent .order-external-no {
+            font-size: 1.20rem !important;
+            color: #000000 !important;
+        }
+
+        .order-block {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+
+        .table-statement {
+            font-size: 8.5pt !important;
+        }
+
+        .statement-signatures,
+        .statement-tafqeet-box,
+        tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    }
+</style>
+
+<!-- Top Toolbar (Screen Only) -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 d-print-none">
+    <h5 class="mb-0 fw-bold text-dark">
+        <i class="bi bi-card-text text-primary me-2"></i>
+        كشف حساب @partyLabel (تفصيلي): <span class="text-primary">@Model.PartyName</span>
+    </h5>
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-primary btn-sm shadow-sm fw-bold px-3" onclick="window.print()">
+            <i class="bi bi-printer-fill me-1"></i> طباعة كشف الحساب (A4)
+        </button>
+        @if (!isVendor)
+        {
+            <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.PartyId" class="btn btn-success btn-sm shadow-sm fw-bold">
+                <i class="bi bi-cash-stack me-1"></i> سند قبض
+            </a>
+            <a asp-controller="Customer" asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-right me-1"></i> العملاء
+            </a>
+        }
+        else
+        {
+            <a asp-controller="Payment" asp-action="VendorPayment" asp-route-vendorId="@Model.PartyId" class="btn btn-danger btn-sm shadow-sm fw-bold">
+                <i class="bi bi-wallet2 me-1"></i> سند صرف
+            </a>
+            <a asp-controller="Vendor" asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-right me-1"></i> الموردين
+            </a>
+        }
+    </div>
+</div>
+
+<!-- Date Range Filter Form (Screen Only) -->
+<div class="card shadow-sm border-0 mb-3 d-print-none">
+    <div class="card-body p-2 px-3">
+        <form method="get" asp-controller="@Model.ControllerName" asp-action="Statement" class="row g-2 align-items-end">
+            <input type="hidden" name="id" value="@Model.PartyId" />
+            <input type="hidden" name="mode" value="@Model.Mode" />
+
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i> من تاريخ</label>
+                <input type="date" name="from" value="@(Model.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control form-control-sm" />
+            </div>
+
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i> إلى تاريخ</label>
+                <input type="date" name="to" value="@(Model.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control form-control-sm" />
+            </div>
+
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                    <i class="bi bi-funnel-fill me-1"></i> تحديث الفترة
+                </button>
+                <a asp-controller="@Model.ControllerName" asp-action="Statement" asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> كل الحركات
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="statement-sheet">
+    <!-- Commercial Header Box -->
+    <div class="statement-header-box">
+        <div class="row align-items-center g-2">
+            <!-- Right: Our Company Branding -->
+            <div class="col-3 text-start">
+                <h6 class="fw-bold text-dark mb-1" style="font-size: 0.95rem;">
+                    <i class="bi bi-building text-primary me-1"></i> المصري للتجارة والتوريدات
+                </h6>
+                <div class="text-muted" style="font-size: 0.74rem;">Elmasry Trading &amp; Supplies</div>
+                <div class="text-muted" style="font-size: 0.70rem;">@(isVendor ? "إدارة الحسابات والمشتريات" : "إدارة الحسابات والمبيعات")</div>
+                <div class="text-muted" style="font-size: 0.68rem;">
+                    <span><strong>س.ت:</strong> 104928</span> | <span><strong>ب.ض:</strong> 482-901-332</span>
+                </div>
+            </div>
+
+            <!-- Center: Party Name (Big & Bold) + Document Title underneath -->
+            <div class="col-6 text-center">
+                <div class="fw-bolder text-dark mb-1" style="font-size: 1.45rem; line-height: 1.25;">
+                    @Model.PartyName
+                </div>
+                <div class="fw-bold text-primary mb-1" style="font-size: 1.15rem; letter-spacing: 0.5px;">
+                    @(isVendor ? "كشف حساب مورد تفصيلي" : "كشف حساب عميل تفصيلي")
+                </div>
+            </div>
+
+            <!-- Left: Metadata (Code, Period, Date) -->
+            <div class="col-3 text-end">
+                <div style="font-size: 0.75rem;">
+                    كود الحساب: <strong class="text-primary font-monospace">#@accountCodePrefix@Model.PartyId.ToString("D4")</strong>
+                </div>
+                <div style="font-size: 0.74rem;" class="text-muted font-tabular">
+                    الفترة:
+                    @if (Model.From.HasValue && Model.To.HasValue)
+                    {
+                        <span>@Model.From.Value.ToString("yyyy-MM-dd") إلى @Model.To.Value.ToString("yyyy-MM-dd")</span>
+                    }
+                    else
+                    {
+                        <span>كافة الفواتير والحركات</span>
+                    }
+                </div>
+                <div class="text-muted" style="font-size: 0.72rem;">
+                    تاريخ الطباعة: <strong>@DateTime.Today.ToString("yyyy-MM-dd")</strong>
+                </div>
+                <div class="text-muted" style="font-size: 0.70rem;">
+                    العملة: <strong>الجنيه المصري (ج.م)</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Summary Equation (matches summary mode to the penny) -->
+    <partial name="_StatementFormulaStrip" model="Model" />
+
+    <!-- Chronological Detailed Statement: every movement in the exact summary order -->
+    <div class="d-flex justify-content-between align-items-center mb-2 mt-2 flex-wrap gap-2">
+        <h6 class="fw-bold text-dark mb-0">
+            <i class="bi bi-card-list text-primary me-1"></i>
+            @(isVendor ? "تفاصيل الفواتير والمدفوعات والحركات (بالترتيب الزمني)" : "تفاصيل الفواتير والسدادات والحركات (بالترتيب الزمني)")
+        </h6>
+        <span class="badge bg-light text-muted border font-tabular" style="font-size: 0.74rem;">
+            إجمالي العمليات: @Model.Lines.Count
+        </span>
+    </div>
+
+    <partial name="_StatementCarryForwardCard" model="Model" />
+
+    @if (!Model.Lines.Any())
+    {
+        <div class="text-center py-4 text-muted border rounded-3 mb-3">
+            <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary"></i>
+            لا توجد أي حركات مالية مسجلة خلال الفترة المحددة.
+        </div>
+    }
+    else
+    {
+        var seq = 0;
+        foreach (var line in Model.Lines)
+        {
+            seq++;
+            var kind = StatementBuilder.ResolveLineKind(line, isVendor);
+            if (kind == StatementLineKind.Invoice && line.DocumentId.HasValue && invoicesById.TryGetValue(line.DocumentId.Value, out var inv))
+            {
+                var invBalanceTag = StatementBuilder.FormatBalanceTag(line.RunningBalance, isVendor);
+                var invBalanceColor = Math.Abs(line.RunningBalance) < 0.005m
+                    ? "text-success"
+                    : (line.RunningBalance > 0 ? "text-danger" : "text-info");
+
+                <div class="order-block" id="doc-card-@inv.InvoiceId">
+                    <div class="order-block-header">
+                        <div class="row align-items-center g-2">
+                            <div class="col-3 text-start">
+                                <span class="badge bg-dark text-white me-1 font-tabular" style="font-size: 0.74rem;">#@seq</span>
+                                <span class="badge bg-light text-dark border" style="font-size: 0.76rem;">
+                                    @(isVendor ? "فاتورة مشتريات" : "فاتورة مبيعات")
+                                </span>
+                            </div>
+
+                            <div class="col-6 text-center">
+                                <span class="order-title-prominent">
+                                    [ فاتورة رقم: <span class="order-external-no">@inv.InvoiceNumber</span> ]
+                                </span>
+                            </div>
+
+                            <div class="col-3 text-end">
+                                <span class="text-muted small">تاريخ الفاتورة:</span>
+                                <strong class="font-tabular ms-1" style="font-size: 0.85rem;">@inv.TransactionDate.ToString("yyyy-MM-dd")</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table-statement">
+                            <thead>
+                                <tr>
+                                    <th style="width: 35px;">#</th>
+                                    <th class="text-start">اسم الصنف</th>
+                                    <th style="width: 105px;">الكمية</th>
+                                    <th style="width: 105px;">سعر الوحدة (ج.م)</th>
+                                    <th style="width: 95px;">الخصم (ج.م)</th>
+                                    <th style="width: 115px;">إجمالي البند (ج.م)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!inv.Items.Any())
+                                {
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">لا توجد بنود مسجلة على هذه الفاتورة.</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    var itemIdx = 1;
+                                    foreach (var item in inv.Items)
+                                    {
+                                        <tr>
+                                            <td class="text-center text-muted fw-bold">@(itemIdx++)</td>
+                                            <td class="text-start fw-bold text-dark">@item.ProductName</td>
+                                            <td class="text-center font-tabular">@item.Quantity.ToString("N3")</td>
+                                            <td class="text-center font-tabular">@item.UnitPrice.ToString("N2")</td>
+                                            <td class="text-center font-tabular @(item.LineDiscountAmount > 0 ? "text-danger" : "text-muted")">
+                                                @(item.LineDiscountAmount > 0 ? "-" + item.LineDiscountAmount.ToString("N2") : "-")
+                                            </td>
+                                            <td class="text-center font-tabular fw-bold">@item.LineTotal.ToString("N2")</td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                            @if (inv.InvoiceDiscountAmount > 0)
+                            {
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="5" class="text-end text-muted">خصم إضافي على إجمالي الفاتورة:</td>
+                                        <td class="text-center text-danger font-tabular">-@inv.InvoiceDiscountAmount.ToString("N2")</td>
+                                    </tr>
+                                </tfoot>
+                            }
+                        </table>
+                    </div>
+
+                    <div class="order-block-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span>
+                            إجمالي عدد البنود: @inv.Items.Count
+                            @if (!string.IsNullOrWhiteSpace(inv.Notes))
+                            {
+                                <span class="ms-2 fw-normal text-muted small">| ملاحظات: @inv.Notes</span>
+                            }
+                        </span>
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <span>
+                                إجمالي الفاتورة:
+                                <span class="font-tabular text-nowrap">@inv.TotalAmount.ToString("N2") ج.م</span>
+                                <span class="small fw-normal text-muted">(@Tafqeet.ToArabicWords(inv.TotalAmount))</span>
+                            </span>
+                            <span class="badge bg-white text-dark border px-2 py-1 font-tabular" style="font-size: 0.78rem;">
+                                الرصيد بعد الفاتورة:
+                                <strong class="@invBalanceColor ms-1">@Math.Abs(line.RunningBalance).ToString("N2") ج.م @invBalanceTag</strong>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                var cardViewData = new ViewDataDictionary(ViewData)
+                {
+                    ["IsVendor"] = isVendor,
+                    ["IsMaritime"] = false,
+                    ["SequenceNumber"] = seq
+                };
+                <partial name="_StatementMovementCard" model="line" view-data="cardViewData" />
+            }
+        }
+    }
+
+    <!-- Tafqeet Strip -->
+    <div class="statement-tafqeet-box d-flex justify-content-between align-items-center flex-wrap gap-1 mt-3">
+        <div>
+            <span class="text-muted fw-bold">الرصيد المتبقي كتابةً:</span>
+            <strong class="text-dark ms-1">
+                @if (Math.Abs(Model.EndingBalance) < 0.005m)
+                {
+                    <span class="text-success">الحساب خالص ومسدد بالكامل (صفر ج.م).</span>
+                }
+                else
+                {
+                    <span>فقط @Tafqeet.ToArabicWords(Math.Abs(Model.EndingBalance)) لا غير</span>
+                }
+            </strong>
+        </div>
+        <span class="badge bg-white text-dark border px-2 py-1 font-tabular" style="font-size: 0.72rem;">
+            عدد الفواتير: @invoices.Count | إجمالي العمليات: @Model.Lines.Count
+        </span>
+    </div>
+
+    <!-- Dual Signatures -->
+    <div class="statement-signatures pt-2 border-top">
+        <div class="row text-center g-2" style="font-size: 0.78rem;">
+            <div class="col-6">
+                <div class="fw-bold text-dark mb-3">توقيع وختم الإدارة المالية / الحسابات</div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-4 text-muted" style="font-size: 0.72rem;">
+                    ............................................................
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="fw-bold text-dark mb-3">توقيع واعتماد صاحب الحساب (@partyLabel)</div>
+                <div class="d-inline-block border-bottom border-dark pb-1 px-4 text-muted" style="font-size: 0.72rem;">
+                    ............................................................
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -26,5 +26,13 @@ namespace BLL.IService
         // Used by BOTH statement modes so summary and detailed totals are
         // computed from the exact same source.
         Task<List<MaritimeSupplyOrderDto>> GetMaritimeSupplyOrdersAsync(int? customerId, DateTime? from, DateTime? to);
+        // Posted customer (WholesaleSales) or vendor (VendorPurchase) invoices
+        // with full item details for detailed account statements.
+        Task<List<StatementInvoiceDetailDto>> GetPostedInvoiceDetailsAsync(
+            InvoiceType type,
+            int? customerId,
+            int? vendorId,
+            DateTime? from,
+            DateTime? to);
     }
 }

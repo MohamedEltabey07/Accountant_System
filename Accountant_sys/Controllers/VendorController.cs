@@ -49,7 +49,7 @@ namespace Accountant_sys.Controllers
         }
 
         // ==========================================
-        // DETAILS (with balance)
+        // DETAILS (with balance & cash flow summary)
         // ==========================================
         [HttpGet]
         public async Task<IActionResult> Details(int id)
@@ -57,17 +57,25 @@ namespace Accountant_sys.Controllers
             var vendor = await _vendorService.GetVendorByIdAsync(id);
             if (vendor == null) return NotFound();
 
+            var ledger = await BuildVendorLedgerAsync(id, StatementBuilder.HistoryStart, StatementBuilder.HistoryEnd);
+            ViewBag.StatementSummary = StatementBuilder.Build(ledger, isVendor: true, vendor.Id, vendor.Name, "Vendor", null, null);
             return View(vendor);
         }
 
         // ==========================================
         // ACCOUNT STATEMENT (كشف حساب مورد)
+        // mode: "summary"  = ledger summary rows
+        //       "detailed" = per-invoice breakdown (items, prices, discounts, totals) + full ledger
         // ==========================================
         [HttpGet]
-        public async Task<IActionResult> Statement(int? id, DateTime? from, DateTime? to)
+        public async Task<IActionResult> Statement(int? id, DateTime? from, DateTime? to, string? mode)
         {
             var activeVendors = await _vendorService.GetActiveVendorAsync() ?? new List<VendorDto>();
             ViewBag.Parties = new SelectList(activeVendors, "Id", "Name");
+
+            ViewBag.Mode = string.Equals(mode, "detailed", StringComparison.OrdinalIgnoreCase)
+                ? "detailed"
+                : "summary";
 
             if (id == null || id <= 0)
                 return View();
@@ -75,10 +83,19 @@ namespace Accountant_sys.Controllers
             var vendor = activeVendors.FirstOrDefault(v => v.Id == id)
                 ?? (await _vendorService.GetAllVendorAsync() ?? new List<VendorDto>()).FirstOrDefault(v => v.Id == id);
             if (vendor == null) return NotFound();
-            var fromDate = from ?? DateTime.Today.AddYears(-10);
-            var toDate = to ?? DateTime.Today;
+            var fromDate = from ?? StatementBuilder.HistoryStart;
+            var toDate = to ?? StatementBuilder.HistoryEnd;
             var ledger = await BuildVendorLedgerAsync(id.Value, fromDate, toDate);
             var model = StatementBuilder.Build(ledger, isVendor: true, vendor.Id, vendor.Name, "Vendor", from, to);
+            model.Mode = (string)ViewBag.Mode;
+
+            if (ViewBag.Mode == "detailed")
+            {
+                ViewBag.DetailedInvoices = await _invoiceService.GetPostedInvoiceDetailsAsync(
+                        InvoiceType.VendorPurchase, null, vendor.Id, from, to)
+                    ?? new List<StatementInvoiceDetailDto>();
+            }
+
             return View(model);
         }
 
@@ -94,8 +111,14 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = opening.EffectiveDate,
+                    Timestamp = opening.CreatedAt,
+                    SortGroup = 0,
+                    Kind = StatementLineKind.OpeningBalance,
+                    DocumentId = opening.Id,
                     DocumentNo = "OP" + opening.Id.ToString("D4"),
                     DocumentType = "رصيد افتتاحي",
+                    Description = StatementBuilder.FormatOpeningDescription(opening),
+                    Notes = opening.Notes,
                     Credit = opening.Amount
                 });
             }
@@ -107,9 +130,13 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = invoice.TransactionDate,
+                    Timestamp = invoice.CreatedAt,
+                    Kind = StatementLineKind.Invoice,
                     DocumentId = invoice.Id,
                     DocumentNo = invoice.InvoiceNumber,
                     DocumentType = "فاتورة مشتريات",
+                    Description = StatementBuilder.FormatInvoiceDescription(invoice, isVendor: true, isMaritime: false),
+                    Notes = invoice.Notes,
                     Credit = invoice.TotalAmount
                 });
             }
@@ -123,9 +150,14 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = note.TransactionDate,
+                    Timestamp = note.CreatedAt,
+                    Kind = StatementLineKind.CreditNoteReturn,
                     DocumentId = note.Id,
                     DocumentNo = note.CreditNoteNumber,
                     DocumentType = "إشعار مرتجع",
+                    Description = StatementBuilder.FormatCreditNoteDescription(note),
+                    Notes = note.Reason,
+                    CreditNote = note,
                     Debit = note.TotalAmount
                 });
             }
@@ -137,10 +169,34 @@ namespace Accountant_sys.Controllers
                 lines.Add(new StatementLine
                 {
                     Date = payment.TransactionDate,
+                    Timestamp = payment.CreatedAt,
+                    Kind = StatementLineKind.VendorPayment,
                     DocumentId = payment.Id,
                     DocumentNo = "VCH" + payment.Id.ToString("D6"),
-                    DocumentType = "سند صرف (دفعة)",
+                    DocumentType = "سند صرف (دفع للمورد)",
+                    Description = StatementBuilder.FormatPaymentDescription(payment, isVendor: true),
+                    Notes = payment.Notes,
+                    CashTransaction = payment,
                     Debit = payment.Amount
+                });
+            }
+
+            var refunds = await _cashTransactionService.GetTransactionsAsync(
+                historyStart, to, CashCategory.VendorRefund, CashDirection.In) ?? new List<CashTransactionDto>();
+            foreach (var refund in refunds.Where(p => p.VendorId == vendorId))
+            {
+                lines.Add(new StatementLine
+                {
+                    Date = refund.TransactionDate,
+                    Timestamp = refund.CreatedAt,
+                    Kind = StatementLineKind.VendorRefund,
+                    DocumentId = refund.Id,
+                    DocumentNo = "VRF" + refund.Id.ToString("D6"),
+                    DocumentType = "سند استرداد نقدي من المورد",
+                    Description = string.IsNullOrWhiteSpace(refund.Notes) ? "استرداد نقدي من المورد (مرتجع)" : refund.Notes.Trim(),
+                    Notes = refund.Notes,
+                    CashTransaction = refund,
+                    Credit = refund.Amount
                 });
             }
 

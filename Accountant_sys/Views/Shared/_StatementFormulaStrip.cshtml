@@ -1,0 +1,125 @@
+@model Accountant_sys.Models.StatementViewModel
+@{
+    var isVendor = Model.PartyType == "Vendor";
+    var isMaritime = Model.ControllerName == "MaritimeCompany" || Model.Lines.Any(l => l.DocumentType.Contains("توريد"));
+    var isSettled = Math.Abs(Model.EndingBalance) < 0.005m;
+    var endClass = isSettled ? "bg-success-subtle text-success" : (Model.EndingBalance > 0 ? "bg-danger-subtle text-danger" : "bg-info-subtle text-info");
+
+    var addParts = new List<string>();
+    if (Model.TotalInvoices > 0)
+        addParts.Add($"{(isVendor ? "فواتير مشتريات" : (isMaritime ? "أوامر توريد" : "فواتير مبيعات"))}: {Model.TotalInvoices:N2}");
+    if (Model.TotalOpening > 0)
+        addParts.Add($"رصيد افتتاحي: {Model.TotalOpening:N2}");
+    if (Model.TotalRefunds > 0)
+        addParts.Add($"{(isVendor ? "استرداد نقدي" : "رد نقدي")}: {Model.TotalRefunds:N2}");
+    var addBreakdown = addParts.Any() ? string.Join(" | ", addParts) : "لا توجد مستحقات جديدة";
+
+    var dedParts = new List<string>();
+    if (Model.TotalPayments > 0)
+        dedParts.Add($"{(isVendor ? "مدفوعات للمورد" : "سدادات مستلمة")}: {Model.TotalPayments:N2}");
+    if (Model.TotalReturns > 0)
+        dedParts.Add($"مرتجعات بضاعة: {Model.TotalReturns:N2}");
+    var dedBreakdown = dedParts.Any() ? string.Join(" | ", dedParts) : (isVendor ? "لا توجد مدفوعات مسجلة" : "لا توجد سدادات مسجلة");
+}
+
+<style>
+    .statement-summary-strip {
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        margin-bottom: 0.75rem;
+        overflow: hidden;
+    }
+
+    .summary-strip-col {
+        padding: 0.5rem 0.65rem;
+        border-left: 1px solid #e2e8f0;
+        text-align: center;
+    }
+
+    .summary-strip-col:last-child {
+        border-left: none;
+    }
+
+    @@media print {
+        .statement-summary-strip {
+            border: 1px solid #94a3b8 !important;
+            margin-bottom: 6px !important;
+        }
+
+        .summary-strip-col {
+            padding: 3px 5px !important;
+            border-left: 1px solid #cbd5e1 !important;
+        }
+    }
+</style>
+
+<!-- 4-Step Arithmetic Account Equation: Beginning + Additions - Deductions = Ending -->
+<div class="statement-summary-strip">
+    <div class="row g-0">
+        <!-- 1. Carry-forward before selected period -->
+        <div class="col-3 summary-strip-col">
+            <span class="text-muted d-block" style="font-size: 0.72rem;">1. رصيد ما قبل الفترة</span>
+            <strong class="font-tabular text-dark" style="font-size: 0.96rem;">
+                @Math.Abs(Model.BeginningBalance).ToString("N2") <small style="font-size: 0.70rem;">ج.م</small>
+            </strong>
+            <div class="text-muted" style="font-size: 0.68rem;">
+                @if (Math.Abs(Model.BeginningBalance) < 0.005m)
+                {
+                    <span>لا يوجد رصيد مرحّل</span>
+                }
+                else if (isVendor)
+                {
+                    <span>@(Model.BeginningBalance > 0 ? "كان مستحقاً للمورد (علينا)" : "كان مدفوعاً مقدماً للمورد")</span>
+                }
+                else
+                {
+                    <span>@(Model.BeginningBalance > 0 ? "كان مستحقاً على العميل (لنا)" : "كان فائضاً لصالح العميل")</span>
+                }
+            </div>
+        </div>
+
+        <!-- 2. Additions during period (+) -->
+        <div class="col-3 summary-strip-col">
+            <span class="text-muted d-block" style="font-size: 0.72rem;">
+                @(isVendor ? "2. + المستحق للمورد (مشتريات وافتتاحي)" : (isMaritime ? "2. + أوامر التوريد والافتتاحي" : "2. + فواتير المبيعات والافتتاحي"))
+            </span>
+            <strong class="font-tabular text-danger" style="font-size: 0.96rem;">
+                +@Model.TotalAdditions.ToString("N2") <small style="font-size: 0.70rem;">ج.م</small>
+            </strong>
+            <div class="text-muted text-truncate" style="font-size: 0.67rem;" title="@addBreakdown">@addBreakdown</div>
+        </div>
+
+        <!-- 3. Payments & Returns during period (-) -->
+        <div class="col-3 summary-strip-col">
+            <span class="text-muted d-block" style="font-size: 0.72rem;">
+                @(isVendor ? "3. - المدفوع للمورد والمرتجعات" : "3. - المدفوع المستلم والمرتجعات")
+            </span>
+            <strong class="font-tabular text-success" style="font-size: 0.96rem;">
+                -@Model.TotalDeductions.ToString("N2") <small style="font-size: 0.70rem;">ج.م</small>
+            </strong>
+            <div class="text-muted text-truncate" style="font-size: 0.67rem;" title="@dedBreakdown">@dedBreakdown</div>
+        </div>
+
+        <!-- 4. Ending Balance (=) -->
+        <div class="col-3 summary-strip-col @endClass">
+            <span class="d-block fw-bold" style="font-size: 0.72rem;">
+                @if (isSettled)
+                {
+                    <span>4. = الحساب مسدد بالكامل</span>
+                }
+                else if (isVendor)
+                {
+                    <span>@(Model.EndingBalance > 0 ? "4. = المتبقي للمورد (علينا دفعه)" : "4. = رصيد لنا عند المورد (مقدم)")</span>
+                }
+                else
+                {
+                    <span>@(Model.EndingBalance > 0 ? "4. = المتبقي على العميل (لنا عليه)" : "4. = رصيد دائن للعميل (له عندنا)")</span>
+                }
+            </span>
+            <strong class="font-tabular" style="font-size: 1.05rem;">
+                @Math.Abs(Model.EndingBalance).ToString("N2") <small style="font-size: 0.70rem;">ج.م</small>
+            </strong>
+        </div>
+    </div>
+</div>

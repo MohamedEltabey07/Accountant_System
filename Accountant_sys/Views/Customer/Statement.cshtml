@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
     ViewData["Title"] = "كشف حساب عميل";
+    var selectedMode = Model?.Mode ?? "summary";
 }
 
 @if (Model == null)
@@ -37,13 +38,20 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">من تاريخ (اختياري)</label>
                             <input type="date" value="2000-01-01" name="from" class="form-control" />
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">إلى تاريخ (اختياري)</label>
                             <input type="date" value="2100-01-01" name="to" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">شكل الكشف</label>
+                            <select name="mode" class="form-select">
+                                <option value="summary">كشف موجز (كل فاتورة بسطر)</option>
+                                <option value="detailed">كشف تفصيلي للفواتير (الأصناف والأسعار لكل فاتورة)</option>
+                            </select>
                         </div>
                         <div class="col-12 pt-3 border-top d-flex gap-2 justify-content-end">
                             <a asp-controller="Customer" asp-action="Index" class="btn btn-outline-secondary">
@@ -61,5 +69,30 @@
 }
 else
 {
-    <partial name="_StatementTable" model="Model" />
+    <!-- Mode Switch: Summary vs Detailed Invoices (Screen Only) -->
+    <div class="d-flex justify-content-center mb-3 d-print-none">
+        <div class="btn-group shadow-sm" role="group" aria-label="شكل كشف الحساب">
+            <a asp-controller="Customer" asp-action="Statement"
+               asp-route-id="@Model.PartyId" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")"
+               asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-mode="summary"
+               class="btn btn-sm @(selectedMode == "summary" ? "btn-primary fw-bold" : "btn-outline-primary")">
+                <i class="bi bi-list-columns-reverse me-1"></i> كشف موجز
+            </a>
+            <a asp-controller="Customer" asp-action="Statement"
+               asp-route-id="@Model.PartyId" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")"
+               asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-mode="detailed"
+               class="btn btn-sm @(selectedMode == "detailed" ? "btn-primary fw-bold" : "btn-outline-primary")">
+                <i class="bi bi-card-text me-1"></i> تفصيلية الفواتير
+            </a>
+        </div>
+    </div>
+
+    @if (selectedMode == "detailed")
+    {
+        <partial name="_PartyDetailedStatement" model="Model" />
+    }
+    else
+    {
+        <partial name="_StatementTable" model="Model" />
+    }
 }

@@ -188,6 +188,32 @@ namespace DAL.Repos
                     .ThenInclude(i => i.AdditionalCharges)
                 .FirstOrDefaultAsync(c => c.Id == chargeId);
         }
+
+        public async Task<List<Invoice>> GetPostedInvoicesWithItemsAsync(
+            InvoiceType type,
+            int? customerId = null,
+            int? vendorId = null)
+        {
+            var query = _context.Invoices
+                .AsNoTracking()
+                .Include(i => i.Customer)
+                .Include(i => i.Vendor)
+                .Include(i => i.Items)
+                    .ThenInclude(ii => ii.Product)
+                .Where(i => i.Type == type && i.Status == InvoiceStatus.Posted)
+                .AsQueryable();
+
+            if (customerId.HasValue)
+                query = query.Where(i => i.CustomerId == customerId.Value);
+
+            if (vendorId.HasValue)
+                query = query.Where(i => i.VendorId == vendorId.Value);
+
+            return await query
+                .OrderBy(i => i.TransactionDate)
+                .ThenBy(i => i.Id)
+                .ToListAsync();
+        }
     }
 }
 

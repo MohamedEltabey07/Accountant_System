@@ -19,6 +19,8 @@ namespace DAL.IRepos
         public         Task<List<Invoice>> GetPostedMaritimeSupplyOrdersAsync(int? customerId);
         Task<Invoice?> GetInvoiceForAmendmentAsync(int invoiceId);
         Task<InvoiceAdditionalCharge?> GetChargeWithInvoiceAsync(int chargeId);
+        // Posted invoices (with items + party) for customer & vendor detailed statements.
+        Task<List<Invoice>> GetPostedInvoicesWithItemsAsync(InvoiceType type, int? customerId = null, int? vendorId = null);
 
     }
 }

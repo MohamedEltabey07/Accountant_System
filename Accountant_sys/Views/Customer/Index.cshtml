@@ -95,19 +95,19 @@
                                     @if (customer.CurrentBalance > 0)
                                     {
                                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fs-6">
-                                            @customer.CurrentBalance.ToString("N2") ج.م (مدين - لنا)
+                                            @customer.CurrentBalance.ToString("N2") ج.م — مستحق على العميل (لنا عليه)
                                         </span>
                                     }
                                     else if (customer.CurrentBalance < 0)
                                     {
                                         <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1 fs-6">
-                                            @Math.Abs(customer.CurrentBalance).ToString("N2") ج.م (دائن - له)
+                                            @Math.Abs(customer.CurrentBalance).ToString("N2") ج.م — رصيد للعميل (له عندنا)
                                         </span>
                                     }
                                     else
                                     {
                                         <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                            0.00 ج.م (مطابق ومسدد)
+                                            0.00 ج.م (الحساب خالص)
                                         </span>
                                     }
                                 </td>

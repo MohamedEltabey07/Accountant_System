@@ -1,0 +1,217 @@
+@model Accountant_sys.Models.StatementViewModel
+@{
+    var isVendor = Model.PartyType == "Vendor";
+    var isMaritime = Model.ControllerName == "MaritimeCompany" || Model.Lines.Any(l => l.DocumentType.Contains("توريد"));
+    var linkToCards = (ViewData["LinkToCards"] as bool?) ?? false;
+    var hasCarryForward = Math.Abs(Model.BeginningBalance) >= 0.005m;
+}
+
+<style>
+    .status-pill {
+        display: inline-block;
+        font-size: 0.73rem;
+        line-height: 1.1;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-weight: 600;
+        vertical-align: middle;
+        white-space: nowrap;
+        border: 1px solid transparent;
+        box-sizing: border-box;
+    }
+
+    .status-pill-opening { background-color: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+    .status-pill-receipt { background-color: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+    .status-pill-invoice { background-color: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+    .status-pill-return { background-color: #fffbeb; color: #92400e; border-color: #fde68a; }
+    .status-pill-disbursement { background-color: #fef2f2; color: #991b1b; border-color: #fecaca; }
+
+    @@media print {
+        .status-pill {
+            font-size: 7pt !important;
+            padding: 1px 4px !important;
+            line-height: 1.05 !important;
+            border: 1px solid #64748b !important;
+            background-color: transparent !important;
+            color: #000000 !important;
+        }
+    }
+</style>
+
+<div class="table-responsive mb-2">
+    <table class="table-statement" id="statementLedgerTable">
+        <thead>
+            <tr>
+                <th style="width: 30px;">#</th>
+                <th style="width: 82px;">التاريخ</th>
+                <th style="width: 122px;">نوع العملية</th>
+                <th class="text-start">تفاصيل الحركة والبيان</th>
+                <th style="width: 96px;">رقم المستند</th>
+                <th style="width: 105px;">
+                    @(isVendor ? "علينا (مشتريات +)" : (isMaritime ? "عليه (توريدات +)" : "عليه (مبيعات +)"))
+                </th>
+                <th style="width: 105px;">
+                    @(isVendor ? "المدفوع للمورد (-)" : "المدفوع المستلم (-)")
+                </th>
+                <th style="width: 128px;">
+                    @(isVendor ? "المستحق بعد الحركة" : "الرصيد بعد الحركة")
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (hasCarryForward)
+            {
+                <tr class="table-light">
+                    <td class="text-center text-muted font-tabular">—</td>
+                    <td class="text-center font-tabular text-muted">@(Model.From?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td class="text-start">
+                        <span class="status-pill status-pill-opening">
+                            <i class="bi bi-clock-history me-1"></i>رصيد سابق مرحّل
+                        </span>
+                    </td>
+                    <td class="text-start text-muted small">الرصيد المتراكم من المعاملات قبل بداية الفترة المحددة</td>
+                    <td class="text-center text-muted">—</td>
+                    <td class="text-center text-muted">-</td>
+                    <td class="text-center text-muted">-</td>
+                    <td class="text-center font-tabular fw-bold text-dark">
+                        @Math.Abs(Model.BeginningBalance).ToString("N2")
+                        @if (isVendor)
+                        {
+                            <span class="@(Model.BeginningBalance > 0 ? "text-danger" : "text-info") ms-1 small fw-normal" style="font-size: 0.68rem;">
+                                @(Model.BeginningBalance > 0 ? "(علينا)" : "(لنا)")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="@(Model.BeginningBalance > 0 ? "text-danger" : "text-info") ms-1 small fw-normal" style="font-size: 0.68rem;">
+                                @(Model.BeginningBalance > 0 ? "(عليه)" : "(له)")
+                            </span>
+                        }
+                    </td>
+                </tr>
+            }
+
+            @if (Model.Lines.Count == 0)
+            {
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted bg-white">
+                        <i class="bi bi-journal-x fs-2 d-block mb-1 text-secondary"></i>
+                        لا توجد أي حركات مالية مسجلة خلال الفترة المحددة.
+                    </td>
+                </tr>
+            }
+            else
+            {
+                int lineIdx = 1;
+                foreach (var line in Model.Lines)
+                {
+                    var plusVal = isVendor ? line.Credit : line.Debit;
+                    var minusVal = isVendor ? line.Debit : line.Credit;
+                    var kind = StatementBuilder.ResolveLineKind(line, isVendor);
+                    var isInvoiceRow = kind == StatementLineKind.Invoice || kind == StatementLineKind.MaritimeSupplyOrder;
+
+                    <tr>
+                        <td class="text-center text-muted fw-bold font-tabular">@(lineIdx++)</td>
+                        <td class="text-center font-tabular">@line.Date.ToString("yyyy-MM-dd")</td>
+                        <td class="text-start">
+                            @switch (kind)
+                            {
+                                case StatementLineKind.MaritimeSupplyOrder:
+                                    <span class="status-pill status-pill-invoice">
+                                        <i class="bi bi-ship me-1"></i>أمر توريد بحري
+                                    </span>
+                                    break;
+                                case StatementLineKind.Invoice:
+                                    <span class="status-pill status-pill-invoice">
+                                        <i class="bi bi-receipt me-1"></i>@(isVendor ? "فاتورة مشتريات" : "فاتورة مبيعات")
+                                    </span>
+                                    break;
+                                case StatementLineKind.VendorPayment:
+                                    <span class="status-pill status-pill-disbursement">
+                                        <i class="bi bi-wallet2 me-1"></i>سند صرف (دفع للمورد)
+                                    </span>
+                                    break;
+                                case StatementLineKind.CustomerReceipt:
+                                    <span class="status-pill status-pill-receipt">
+                                        <i class="bi bi-cash-stack me-1"></i>@(isMaritime ? "سند دفعة مستلمة (بحري)" : "سند قبض (دفع من العميل)")
+                                    </span>
+                                    break;
+                                case StatementLineKind.CreditNoteReturn:
+                                    <span class="status-pill status-pill-return">
+                                        <i class="bi bi-arrow-return-right me-1"></i>إشعار مرتجع بضاعة
+                                    </span>
+                                    break;
+                                case StatementLineKind.VendorRefund:
+                                case StatementLineKind.CustomerRefund:
+                                    <span class="status-pill status-pill-disbursement">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>@(isVendor ? "استرداد نقدي من المورد" : "رد نقدي للعميل")
+                                    </span>
+                                    break;
+                                default:
+                                    <span class="status-pill status-pill-opening">
+                                        <i class="bi bi-clock-history me-1"></i>رصيد افتتاحي
+                                    </span>
+                                    break;
+                            }
+                        </td>
+                        <td class="text-start small text-dark">
+                            @(string.IsNullOrWhiteSpace(line.Description) ? line.DocumentType : line.Description)
+                        </td>
+                        <td class="text-center font-monospace fw-bold text-dark" style="font-size: 0.78rem;">
+                            @if (linkToCards && isInvoiceRow && line.DocumentId.HasValue)
+                            {
+                                <a href="#doc-card-@line.DocumentId" class="text-primary text-decoration-none d-print-none" title="الانتقال لتفاصيل الأصناف">
+                                    @line.DocumentNo <i class="bi bi-arrow-down-short"></i>
+                                </a>
+                                <span class="d-none d-print-inline">@line.DocumentNo</span>
+                            }
+                            else
+                            {
+                                @line.DocumentNo
+                            }
+                            @if (!string.IsNullOrWhiteSpace(line.SecondaryDocNo))
+                            {
+                                <div class="small text-muted fw-normal" style="font-size: 0.66rem;">(@line.SecondaryDocNo)</div>
+                            }
+                        </td>
+                        <td class="text-center font-tabular @(plusVal > 0 ? "text-danger fw-bold" : "text-muted")">
+                            @(plusVal > 0 ? "+" + plusVal.ToString("N2") : "-")
+                        </td>
+                        <td class="text-center font-tabular @(minusVal > 0 ? "text-success fw-bold" : "text-muted")">
+                            @(minusVal > 0 ? "-" + minusVal.ToString("N2") : "-")
+                        </td>
+                        <td class="text-center font-tabular fw-bold text-dark">
+                            <span>@Math.Abs(line.RunningBalance).ToString("N2")</span>
+                            @if (Math.Abs(line.RunningBalance) < 0.005m)
+                            {
+                                <span class="text-success ms-1 small fw-normal" style="font-size: 0.68rem;">(خالص)</span>
+                            }
+                            else if (isVendor)
+                            {
+                                <span class="@(line.RunningBalance > 0 ? "text-danger" : "text-info") ms-1 small fw-normal" style="font-size: 0.68rem;">
+                                    @(line.RunningBalance > 0 ? "(علينا)" : "(لنا عنده)")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="@(line.RunningBalance > 0 ? "text-danger" : "text-info") ms-1 small fw-normal" style="font-size: 0.68rem;">
+                                    @(line.RunningBalance > 0 ? "(عليه)" : "(له)")
+                                </span>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="5" class="fw-bold text-end">إجمالي حركات الفترة والرصيد الختامي:</td>
+                <td class="text-center fw-bold text-danger font-tabular">+@Model.TotalAdditions.ToString("N2")</td>
+                <td class="text-center fw-bold text-success font-tabular">-@Model.TotalDeductions.ToString("N2")</td>
+                <td class="text-center fw-bold text-dark font-tabular">
+                    @Math.Abs(Model.EndingBalance).ToString("N2") ج.م
+                </td>
+            </tr>
+        </tfoot>
+    </table>
+</div>

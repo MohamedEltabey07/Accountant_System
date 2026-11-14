@@ -239,8 +239,8 @@
             <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.PartyId" class="btn btn-success btn-sm shadow-sm fw-bold">
                 <i class="bi bi-cash-stack me-1"></i> سند قبض
             </a>
-            <a asp-controller="Customer" asp-action="Index" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-right me-1"></i> العملاء
+            <a asp-controller="@Model.ControllerName" asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-right me-1"></i> @(Model.ControllerName == "MaritimeCompany" ? "الشركات البحرية" : "العملاء")
             </a>
         }
         else
@@ -276,7 +276,7 @@
                 <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
                     <i class="bi bi-funnel-fill me-1"></i> تحديث الفترة
                 </button>
-                <a asp-controller="@Model.ControllerName" asp-action="Statement" asp-route-id="@Model.PartyId" class="btn btn-outline-secondary btn-sm">
+                <a asp-controller="@Model.ControllerName" asp-action="Statement" asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-counterclockwise me-1"></i> كل الحركات
                 </a>
             </div>
@@ -355,63 +355,8 @@
         </div>
     </div>
 
-    <!-- 2. Compact 1-Line Financial Summary Strip (Takes only ~28mm vertical space) -->
-    <div class="statement-summary-strip">
-        <div class="row g-0">
-            <!-- 1. Beginning Balance -->
-            <div class="col-3 summary-strip-col">
-                <span class="text-muted d-block" style="font-size: 0.72rem;">رصيد أول المدة (السابق)</span>
-                <strong class="font-tabular text-dark" style="font-size: 0.95rem;">
-                    @Model.BeginningBalance.ToString("N2") <small style="font-size: 0.70rem;">ج.م</small>
-                </strong>
-            </div>
-
-            <!-- 2. Total Invoices / Debits -->
-            <div class="col-3 summary-strip-col">
-                <span class="text-muted d-block" style="font-size: 0.72rem;">
-                    @(Model.PartyType == "Customer" ? "إجمالي المسحوبات (مبيعات +)" : "إجمالي المدفوعات للمورد (+)")
-                </span>
-                <strong class="font-tabular text-primary" style="font-size: 0.95rem;">
-                    +@Model.TotalInvoices.ToString("N2") <small style="font-size: 0.70rem;">ج.م</small>
-                </strong>
-            </div>
-
-            <!-- 3. Total Credits (Payments & Returns) -->
-            <div class="col-3 summary-strip-col">
-                <span class="text-muted d-block" style="font-size: 0.72rem;">
-                    @(Model.PartyType == "Customer" ? "إجمالي السدادات والمرتجع (-)" : "إجمالي المشتريات والتوريد (-)")
-                </span>
-                <strong class="font-tabular text-success" style="font-size: 0.95rem;">
-                    -@((Model.TotalPayments + Model.TotalReturns).ToString("N2")) <small style="font-size: 0.70rem;">ج.م</small>
-                </strong>
-            </div>
-
-            <!-- 4. Ending Balance Highlight -->
-            @{
-                var isSettled = Math.Abs(Model.EndingBalance) < 0.005m;
-                var endClass = isSettled ? "bg-success-subtle text-success" : (Model.EndingBalance > 0 ? "bg-danger-subtle text-danger" : "bg-info-subtle text-info");
-            }
-            <div class="col-3 summary-strip-col @endClass">
-                <span class="d-block fw-bold" style="font-size: 0.72rem;">
-                    @if (isSettled)
-                    {
-                        <span>الحساب مسدد بالكامل</span>
-                    }
-                    else if (Model.PartyType == "Customer")
-                    {
-                        <span>@(Model.EndingBalance > 0 ? "المتبقي على العميل (لنا)" : "رصيد دائن للعميل (له)")</span>
-                    }
-                    else
-                    {
-                        <span>@(Model.EndingBalance > 0 ? "المستحق للمورد (علينا)" : "مدفوع مقدماً للمورد (لنا)")</span>
-                    }
-                </span>
-                <strong class="font-tabular" style="font-size: 1.05rem;">
-                    @Math.Abs(Model.EndingBalance).ToString("N2") <small style="font-size: 0.70rem;">ج.م</small>
-                </strong>
-            </div>
-        </div>
-    </div>
+    <!-- 2. Compact 4-Step Arithmetic Financial Formula Strip -->
+    <partial name="_StatementFormulaStrip" model="Model" />
 
     <!-- Client-Side Instant Table Search Bar (Screen Only) -->
     <div class="d-flex justify-content-between align-items-center mb-2 d-print-none">
@@ -424,143 +369,11 @@
         </span>
     </div>
 
-    <!-- 3. High-Density Statement Ledger Table (Fits 30-35 rows per page on A4) -->
-    <div class="table-responsive mb-2">
-        <table class="table-statement" id="statementLedgerTable">
-            <thead>
-                <tr>
-                    <th style="width: 35px;">#</th>
-                    <th style="width: 90px;">التاريخ</th>
-                    <th class="text-start">البيان والمعاملة</th>
-                    <th style="width: 110px;">رقم المستند</th>
-                    @if (Model.PartyType == "Customer")
-                    {
-                        <th style="width: 105px;">عليه (مبيعات +)</th>
-                        <th style="width: 105px;">له (سدادات -)</th>
-                        <th style="width: 120px;">الرصيد المتبقي</th>
-                    }
-                    else
-                    {
-                        <th style="width: 105px;">له (سدادات -)</th>
-                        <th style="width: 105px;">علينا (مشتريات +)</th>
-                        <th style="width: 120px;">المستحق للمورد</th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
-                @if (Model.Lines.Count == 0)
-                {
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-muted bg-white">
-                            <i class="bi bi-journal-x fs-2 d-block mb-1 text-secondary"></i>
-                            لا توجد أي حركات مالية مسجلة خلال الفترة المحددة.
-                        </td>
-                    </tr>
-                }
-                else
-                {
-                    int lineIdx = 1;
-                    foreach (var line in Model.Lines)
-                    {
-                        <tr>
-                            <td class="text-center text-muted fw-bold font-tabular">@(lineIdx++)</td>
-                            <td class="text-center font-tabular">@line.Date.ToString("yyyy-MM-dd")</td>
-                            <td class="text-start">
-                                @if (line.DocumentType.Contains("توريد"))
-                                {
-                                    <span class="status-pill status-pill-invoice">
-                                        <i class="bi bi-ship me-1"></i>أمر توريد بحري
-                                    </span>
-                                }
-                                else if (line.DocumentType.Contains("فاتورة"))
-                                {
-                                    <span class="status-pill status-pill-invoice">
-                                        <i class="bi bi-receipt me-1"></i>@(Model.PartyType == "Customer" ? "فاتورة مبيعات" : "فاتورة مشتريات")
-                                    </span>
-                                }
-                                else if (line.DocumentType.Contains("قبض") || line.DocumentType.Contains("دفعة"))
-                                {
-                                    <span class="status-pill status-pill-receipt">
-                                        <i class="bi bi-cash-stack me-1"></i>سند قبض (دفعة)
-                                    </span>
-                                }
-                                else if (line.DocumentType.Contains("صرف"))
-                                {
-                                    <span class="status-pill status-pill-disbursement">
-                                        <i class="bi bi-wallet2 me-1"></i>سند صرف (دفعة)
-                                    </span>
-                                }
-                                else if (line.DocumentType.Contains("مرتجع"))
-                                {
-                                    <span class="status-pill status-pill-return">
-                                        <i class="bi bi-arrow-return-right me-1"></i>إشعار مرتجع بضاعة
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="status-pill status-pill-opening">
-                                        <i class="bi bi-clock-history me-1"></i>رصيد افتتاحي
-                                    </span>
-                                }
-                            </td>
-                            <td class="text-center font-monospace fw-bold text-dark" style="font-size: 0.80rem;">
-                                @line.DocumentNo
-                                @if (!string.IsNullOrWhiteSpace(line.SecondaryDocNo))
-                                {
-                                    <div class="small text-muted fw-normal" style="font-size: 0.68rem;">(@line.SecondaryDocNo)</div>
-                                }
-                            </td>
-                            <td class="text-center font-tabular @(line.Debit > 0 ? "text-danger fw-bold" : "text-muted")">
-                                @(line.Debit > 0 ? line.Debit.ToString("N2") : "-")
-                            </td>
-                            <td class="text-center font-tabular @(line.Credit > 0 ? "text-success fw-bold" : "text-muted")">
-                                @(line.Credit > 0 ? line.Credit.ToString("N2") : "-")
-                            </td>
-                            <td class="text-center font-tabular fw-bold text-dark">
-                                <span>@Math.Abs(line.RunningBalance).ToString("N2")</span>
-                                @if (Math.Abs(line.RunningBalance) < 0.005m)
-                                {
-                                    <span class="text-success ms-1 small fw-normal" style="font-size: 0.70rem;">(خالص)</span>
-                                }
-                                else if (Model.PartyType == "Customer")
-                                {
-                                    if (line.RunningBalance > 0)
-                                    {
-                                        <span class="text-danger ms-1 small fw-normal" style="font-size: 0.70rem;">(عليه)</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-info ms-1 small fw-normal" style="font-size: 0.70rem;">(له)</span>
-                                    }
-                                }
-                                else
-                                {
-                                    if (line.RunningBalance > 0)
-                                    {
-                                        <span class="text-danger ms-1 small fw-normal" style="font-size: 0.70rem;">(له)</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-info ms-1 small fw-normal" style="font-size: 0.70rem;">(لنا)</span>
-                                    }
-                                }
-                            </td>
-                        </tr>
-                    }
-                }
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="4" class="fw-bold text-end">الإجمالي والرصيد الختامي:</td>
-                    <td class="text-center fw-bold text-danger font-tabular">@Model.TotalInvoices.ToString("N2")</td>
-                    <td class="text-center fw-bold text-success font-tabular">@((Model.TotalPayments + Model.TotalReturns).ToString("N2"))</td>
-                    <td class="text-center fw-bold text-dark font-tabular">
-                        @Math.Abs(Model.EndingBalance).ToString("N2") ج.م
-                    </td>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
+    <!-- 3. Chronological Statement Ledger Table (Unified + / - / Balance Flow) -->
+    @{
+        ViewData["LinkToCards"] = false;
+    }
+    <partial name="_StatementLedgerSection" model="Model" />
 
     <!-- 4. Compact 1-Line Tafqeet Strip -->
     <div class="statement-tafqeet-box p-2 bg-light rounded border mb-3" style="font-size: 0.80rem;">

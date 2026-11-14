@@ -1,21 +1,70 @@
 @model BLL.DTOs.Customer.OutGoingData.CustomerDto
+@using Accountant_sys.Models
 @{
     ViewData["Title"] = "تفاصيل العميل - " + Model.Name;
+    var summary = ViewBag.StatementSummary as StatementViewModel;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4><i class="bi bi-person-badge me-2"></i> تفاصيل العميل</h4>
-    <div>
-        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <h4 class="mb-0"><i class="bi bi-person-badge me-2 text-primary"></i> تفاصيل العميل: <span class="text-primary">@Model.Name</span></h4>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="detailed" class="btn btn-primary btn-sm fw-bold">
+            <i class="bi bi-card-text me-1"></i> كشف الحساب التفصيلي
+        </a>
+        <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="summary" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-list-columns-reverse me-1"></i> كشف الحساب الموجز
+        </a>
+        <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.Id" class="btn btn-success btn-sm fw-bold">
+            <i class="bi bi-cash-stack me-1"></i> استلام دفعة (سند قبض)
+        </a>
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning btn-sm">
             <i class="bi bi-pencil me-1"></i> تعديل
         </a>
-        <a asp-action="Index" class="btn btn-outline-secondary">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-right me-1"></i> رجوع للقائمة
         </a>
     </div>
 </div>
 
-<div class="row g-3">
+@if (summary != null)
+{
+    <!-- Clear Money-Flow Cards -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-danger border-4 h-100">
+                <div class="card-body py-3">
+                    <small class="text-muted d-block">إجمالي المسحوبات (مبيعات + افتتاحي)</small>
+                    <h4 class="fw-bold text-danger font-tabular mb-1">+@summary.TotalAdditions.ToString("N2") <small class="fs-6 text-muted">ج.م</small></h4>
+                    <small class="text-muted">فواتير مبيعات: @summary.TotalInvoices.ToString("N2") | افتتاحي: @summary.TotalOpening.ToString("N2")</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-success border-4 h-100">
+                <div class="card-body py-3">
+                    <small class="text-muted d-block">إجمالي ما دفعه العميل + المرتجعات</small>
+                    <h4 class="fw-bold text-success font-tabular mb-1">-@summary.TotalDeductions.ToString("N2") <small class="fs-6 text-muted">ج.م</small></h4>
+                    <small class="text-muted">مدفوعات مستلمة: @summary.TotalPayments.ToString("N2") | مرتجعات: @summary.TotalReturns.ToString("N2")</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-dark border-4 h-100">
+                <div class="card-body py-3">
+                    <small class="text-muted d-block">الرصيد المتبقي الحالي</small>
+                    <h4 class="fw-bold font-tabular mb-1 @(Model.CurrentBalance > 0 ? "text-danger" : (Model.CurrentBalance < 0 ? "text-info" : "text-success"))">
+                        @Math.Abs(Model.CurrentBalance).ToString("N2") <small class="fs-6 text-muted">ج.م</small>
+                    </h4>
+                    <small class="fw-bold @(Model.CurrentBalance > 0 ? "text-danger" : (Model.CurrentBalance < 0 ? "text-info" : "text-success"))">
+                        @(Model.CurrentBalance > 0 ? "مستحق على العميل (لنا عليه)" : (Model.CurrentBalance < 0 ? "رصيد فائض للعميل (له عندنا)" : "الحساب خالص ومسدد"))
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row g-3 mb-4">
     <!-- Basic Info Card -->
     <div class="col-lg-7">
         <div class="card shadow-sm h-100">
@@ -27,7 +76,7 @@
             <div class="card-body">
                 <dl class="row mb-0 gy-3">
                     <dt class="col-sm-4 text-muted">كود العميل</dt>
-                    <dd class="col-sm-8 fw-semibold">#@Model.Id</dd>
+                    <dd class="col-sm-8 fw-semibold">#CST-@Model.Id.ToString("D4")</dd>
 
                     <dt class="col-sm-4 text-muted">اسم العميل</dt>
                     <dd class="col-sm-8 fw-bold fs-5">@Model.Name</dd>
@@ -60,7 +109,7 @@
                         else
                         {
                             <span class="badge bg-secondary-subtle text-secondary border border-secondary px-2 py-1">
-                                <i class="bi bi-slash-circle me-1"></i> معطل
+                                <i class="bi bi-slash-circle me-1"></i> غير نشط
                             </span>
                         }
                     </dd>
@@ -91,24 +140,24 @@
                             <i class="bi bi-check2-circle text-success"></i>
                         }
                     </div>
-                    <h5 class="fw-bold mb-1">الرصيد المالي الحالي</h5>
-                    <small class="text-muted d-block mb-3">محسوب بدقة من واقع الفواتير المرحلة والمدفوعات والمرتجعات</small>
+                    <h5 class="fw-bold mb-1">صافي رصيد العميل</h5>
+                    <small class="text-muted d-block mb-3">فواتير المبيعات + الافتتاحي - ما دفعه والمرتجعات</small>
 
                     <div class="display-6 fw-bold mb-2">
-                        @Model.CurrentBalance.ToString("N2") <small class="fs-6">ج.م</small>
+                        @Math.Abs(Model.CurrentBalance).ToString("N2") <small class="fs-6">ج.م</small>
                     </div>
 
                     <div>
                         @if (Model.CurrentBalance > 0)
                         {
                             <span class="badge bg-danger fs-6 px-3 py-2">
-                                <i class="bi bi-arrow-up-right me-1"></i> مدين (مستحق على العميل للمحل)
+                                <i class="bi bi-arrow-up-right me-1"></i> مستحق على العميل (لنا عليه)
                             </span>
                         }
                         else if (Model.CurrentBalance < 0)
                         {
                             <span class="badge bg-info text-dark fs-6 px-3 py-2">
-                                <i class="bi bi-arrow-down-left me-1"></i> دائن (رصيد لصالح العميل / دفعة مقدمة)
+                                <i class="bi bi-arrow-down-left me-1"></i> رصيد للعميل (دفعة مقدمة)
                             </span>
                         }
                         else
@@ -121,7 +170,7 @@
                 </div>
 
                 <div class="mt-4 pt-3 border-top border-white-50">
-                    <a asp-controller="Invoice" asp-action="Create" asp-route-customerId="@Model.Id" class="btn btn-outline-dark btn-sm w-100 mb-2">
+                    <a asp-controller="Invoice" asp-action="Create" asp-route-type="2" asp-route-customerId="@Model.Id" class="btn btn-outline-dark btn-sm w-100 mb-2">
                         <i class="bi bi-plus-circle me-1"></i> إنشاء فاتورة جملة جديدة
                     </a>
                     <a asp-controller="Invoice" asp-action="Index" asp-route-type="WholesaleSales" class="btn btn-link btn-sm text-decoration-none">
@@ -132,3 +181,51 @@
         </div>
     </div>
 </div>
+
+@if (summary != null && summary.Lines.Any())
+{
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0 fw-bold text-dark">
+                <i class="bi bi-arrow-left-right text-primary me-1"></i> تسلسل حركات الحساب (الفواتير والمدفوعات)
+            </h5>
+            <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="detailed" class="btn btn-outline-primary btn-sm">
+                فتح الكشف التفصيلي الكامل <i class="bi bi-arrow-left ms-1"></i>
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle text-center mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>التاريخ</th>
+                            <th>العملية</th>
+                            <th class="text-start">تفاصيل الحركة</th>
+                            <th>رقم المستند</th>
+                            <th>عليه (مبيعات +)</th>
+                            <th>المدفوع المستلم (-)</th>
+                            <th>الرصيد بعد الحركة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in summary.Lines.TakeLast(15))
+                        {
+                            <tr>
+                                <td class="font-tabular">@line.Date.ToString("yyyy-MM-dd")</td>
+                                <td><span class="badge bg-light text-dark border">@line.DocumentType</span></td>
+                                <td class="text-start small">@(string.IsNullOrWhiteSpace(line.Description) ? line.DocumentType : line.Description)</td>
+                                <td class="font-monospace fw-bold">@line.DocumentNo</td>
+                                <td class="font-tabular @(line.Debit > 0 ? "text-danger fw-bold" : "text-muted")">@(line.Debit > 0 ? "+" + line.Debit.ToString("N2") : "-")</td>
+                                <td class="font-tabular @(line.Credit > 0 ? "text-success fw-bold" : "text-muted")">@(line.Credit > 0 ? "-" + line.Credit.ToString("N2") : "-")</td>
+                                <td class="font-tabular fw-bold">
+                                    @Math.Abs(line.RunningBalance).ToString("N2")
+                                    <small class="text-muted fw-normal">@(Math.Abs(line.RunningBalance) < 0.005m ? "(خالص)" : (line.RunningBalance > 0 ? "(عليه)" : "(له)"))</small>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}

@@ -1,0 +1,245 @@
+@model Accountant_sys.Models.StatementLine
+@using Accountant_sys.Models
+@using BLL.Service
+@{
+    var isVendor = (ViewData["IsVendor"] as bool?) ?? false;
+    var isMaritime = (ViewData["IsMaritime"] as bool?) ?? false;
+    var seq = (ViewData["SequenceNumber"] as int?) ?? 1;
+
+    var kind = StatementBuilder.ResolveLineKind(Model, isVendor);
+    var plusVal = isVendor ? Model.Credit : Model.Debit;
+    var minusVal = isVendor ? Model.Debit : Model.Credit;
+    var amount = plusVal > 0 ? plusVal : minusVal;
+    var isDeduction = minusVal > 0;
+    var balanceTag = StatementBuilder.FormatBalanceTag(Model.RunningBalance, isVendor);
+    var balanceColorClass = Math.Abs(Model.RunningBalance) < 0.005m
+        ? "text-success"
+        : (Model.RunningBalance > 0 ? "text-danger" : "text-info");
+
+    string typeBadgeText;
+    string centerTitleLabel;
+    string headerBgStyle;
+    string blockBorderStyle;
+    string badgeBgClass;
+
+    switch (kind)
+    {
+        case StatementLineKind.VendorPayment:
+            typeBadgeText = "سند صرف (دفع للمورد)";
+            centerTitleLabel = "سند صرف رقم";
+            headerBgStyle = "background: #ecfdf5; border-bottom-color: #a7f3d0;";
+            blockBorderStyle = "border-color: #34d399;";
+            badgeBgClass = "bg-success-subtle text-success border border-success-subtle";
+            break;
+        case StatementLineKind.CustomerReceipt:
+            typeBadgeText = isMaritime ? "سند دفعة مستلمة (بحري)" : "سند قبض (دفع من العميل)";
+            centerTitleLabel = "سند قبض رقم";
+            headerBgStyle = "background: #ecfdf5; border-bottom-color: #a7f3d0;";
+            blockBorderStyle = "border-color: #34d399;";
+            badgeBgClass = "bg-success-subtle text-success border border-success-subtle";
+            break;
+        case StatementLineKind.CreditNoteReturn:
+            typeBadgeText = "إشعار مرتجع بضاعة";
+            centerTitleLabel = "إشعار مرتجع رقم";
+            headerBgStyle = "background: #fffbeb; border-bottom-color: #fde68a;";
+            blockBorderStyle = "border-color: #f59e0b;";
+            badgeBgClass = "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
+            break;
+        case StatementLineKind.VendorRefund:
+        case StatementLineKind.CustomerRefund:
+            typeBadgeText = isVendor ? "استرداد نقدي من المورد" : "رد نقدي للعميل";
+            centerTitleLabel = "سند رد نقدي رقم";
+            headerBgStyle = "background: #fef2f2; border-bottom-color: #fecaca;";
+            blockBorderStyle = "border-color: #f87171;";
+            badgeBgClass = "bg-danger-subtle text-danger border border-danger-subtle";
+            break;
+        default:
+            typeBadgeText = "رصيد افتتاحي";
+            centerTitleLabel = "مستند رصيد رقم";
+            headerBgStyle = "background: #f1f5f9; border-bottom-color: #cbd5e1;";
+            blockBorderStyle = "border-color: #64748b;";
+            badgeBgClass = "bg-secondary-subtle text-dark border border-secondary-subtle";
+            break;
+    }
+}
+
+<div class="order-block" id="doc-card-@Model.DocumentNo" style="@blockBorderStyle">
+    <div class="order-block-header" style="@headerBgStyle">
+        <div class="row align-items-center g-2">
+            <div class="col-3 text-start">
+                <span class="badge bg-dark text-white me-1 font-tabular" style="font-size: 0.74rem;">#@seq</span>
+                <span class="badge @badgeBgClass" style="font-size: 0.76rem;">
+                    @typeBadgeText
+                </span>
+            </div>
+
+            <div class="col-6 text-center">
+                <span class="order-title-prominent">
+                    [ @centerTitleLabel: <span class="order-external-no">@Model.DocumentNo</span> ]
+                </span>
+            </div>
+
+            <div class="col-3 text-end">
+                <span class="text-muted small">تاريخ الحركة:</span>
+                <strong class="font-tabular ms-1" style="font-size: 0.85rem;">@Model.Date.ToString("yyyy-MM-dd")</strong>
+            </div>
+        </div>
+    </div>
+
+    @if (kind == StatementLineKind.CreditNoteReturn && Model.CreditNote != null && Model.CreditNote.Items.Any())
+    {
+        <div class="table-responsive">
+            <table class="table-statement">
+                <thead>
+                    <tr>
+                        <th style="width: 35px;">#</th>
+                        <th class="text-start">الصنف المرتجع</th>
+                        <th style="width: 110px;">الكمية المرتجعة</th>
+                        <th style="width: 110px;">سعر الوحدة (ج.م)</th>
+                        <th style="width: 120px;">إجمالي المرتجع (ج.م)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        var retIdx = 1;
+                        foreach (var item in Model.CreditNote.Items)
+                        {
+                            <tr>
+                                <td class="text-center text-muted fw-bold">@(retIdx++)</td>
+                                <td class="text-start fw-bold text-dark">@item.ProductName</td>
+                                <td class="text-center font-tabular">@item.Quantity.ToString("N3")</td>
+                                <td class="text-center font-tabular">@item.UnitPrice.ToString("N2")</td>
+                                <td class="text-center font-tabular fw-bold text-success">-@item.LineTotal.ToString("N2")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="5" class="text-start small text-dark">
+                            <strong>الفاتورة الأصلية:</strong>
+                            <span class="font-monospace">@Model.CreditNote.OriginalInvoiceNumber</span>
+                            @if (!string.IsNullOrWhiteSpace(Model.CreditNote.Reason))
+                            {
+                                <span class="ms-2 text-muted">| <strong>سبب المرتجع:</strong> @Model.CreditNote.Reason</span>
+                            }
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+    else if ((kind == StatementLineKind.VendorPayment || kind == StatementLineKind.CustomerReceipt)
+             && Model.CashTransaction != null
+             && Model.CashTransaction.Allocations != null
+             && Model.CashTransaction.Allocations.Any())
+    {
+        var allocatedTotal = Model.CashTransaction.Allocations.Sum(a => a.Amount);
+        var unallocatedRemainder = Model.CashTransaction.Amount - allocatedTotal;
+        <div class="table-responsive">
+            <table class="table-statement">
+                <thead>
+                    <tr>
+                        <th style="width: 35px;">#</th>
+                        <th class="text-start">تفاصيل توزيع الدفعة / الفاتورة المسددة</th>
+                        <th style="width: 140px;">رقم الفاتورة</th>
+                        <th style="width: 140px;">المبلغ المخصوم (ج.م)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        var allocIdx = 1;
+                        foreach (var alloc in Model.CashTransaction.Allocations)
+                        {
+                            <tr>
+                                <td class="text-center text-muted fw-bold">@(allocIdx++)</td>
+                                <td class="text-start fw-semibold text-dark">
+                                    @(isVendor ? "سداد من مستحقات فاتورة مشتريات" : "تحصيل مقابل فاتورة")
+                                </td>
+                                <td class="text-center font-monospace fw-bold text-primary">
+                                    @(string.IsNullOrWhiteSpace(alloc.InvoiceNumber) ? $"#{alloc.InvoiceId}" : alloc.InvoiceNumber)
+                                </td>
+                                <td class="text-center font-tabular fw-bold text-success">-@alloc.Amount.ToString("N2")</td>
+                            </tr>
+                        }
+                        if (unallocatedRemainder >= 0.01m)
+                        {
+                            <tr>
+                                <td class="text-center text-muted fw-bold">@(allocIdx++)</td>
+                                <td class="text-start text-dark">سداد الرصيد الافتتاحي / متبقي على الحساب</td>
+                                <td class="text-center text-muted">-</td>
+                                <td class="text-center font-tabular fw-bold text-success">-@unallocatedRemainder.ToString("N2")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                @if (!string.IsNullOrWhiteSpace(Model.CashTransaction.Notes))
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="4" class="text-start small text-dark">
+                                <strong>ملاحظات السند:</strong> @Model.CashTransaction.Notes.Trim()
+                            </td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table-statement">
+                <thead>
+                    <tr>
+                        <th class="text-start">البيان والتفاصيل</th>
+                        <th style="width: 145px;">تأثير الحركة على الحساب</th>
+                        <th style="width: 130px;">قيمة الحركة (ج.م)</th>
+                        <th style="width: 145px;">الرصيد بعد الحركة (ج.م)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-start fw-semibold text-dark">
+                            @(string.IsNullOrWhiteSpace(Model.Description) ? Model.DocumentType : Model.Description)
+                        </td>
+                        <td class="text-center">
+                            @if (isDeduction)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.72rem;">
+                                    يُخصم من المستحق (-)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.72rem;">
+                                    يُضاف للمستحق (+)
+                                </span>
+                            }
+                        </td>
+                        <td class="text-center font-tabular fw-bold @(isDeduction ? "text-success" : "text-danger")">
+                            @(isDeduction ? "-" : "+")@amount.ToString("N2")
+                        </td>
+                        <td class="text-center font-tabular fw-bold @balanceColorClass">
+                            @Math.Abs(Model.RunningBalance).ToString("N2") <span class="small fw-normal">@balanceTag</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="order-block-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>
+            @(isDeduction ? "إجمالي قيمة السند / الخصم:" : "إجمالي قيمة الحركة:")
+            <span class="font-tabular text-nowrap @(isDeduction ? "text-success" : "text-danger")">
+                @(isDeduction ? "-" : "+")@amount.ToString("N2") ج.م
+            </span>
+            <span class="small fw-normal text-muted">(فقط @Tafqeet.ToArabicWords(amount) لا غير)</span>
+        </span>
+        <span class="badge bg-white text-dark border px-2 py-1 font-tabular" style="font-size: 0.80rem;">
+            الرصيد بعد الحركة:
+            <strong class="@balanceColorClass ms-1">@Math.Abs(Model.RunningBalance).ToString("N2") ج.م @balanceTag</strong>
+        </span>
+    </div>
+</div>
