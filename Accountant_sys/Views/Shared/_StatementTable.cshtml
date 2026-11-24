@@ -1,436 +1,182 @@
 @model Accountant_sys.Models.StatementViewModel
 @using System.Globalization
-@using BLL.Service
+@using Accountant_sys.Models
+@{
+    var labels = Model.Labels;
+    var modeClass = Model.IsDetailed ? "is-detailed" : "is-summary";
+    var today = DateTime.Today;
+    var monthStart = new DateTime(today.Year, today.Month, 1);
+    var last30 = today.AddDays(-29);
+    var hasAnyFilter = Model.From.HasValue || Model.To.HasValue;
+    var partyMeta = string.Join(" · ", new[]
+    {
+        $"كود {Model.AccountCode}",
+        Model.PartyAddress,
+        Model.PartyPhoneNumber
+    }.Where(x => !string.IsNullOrWhiteSpace(x)));
+}
 
-<style>
-    /* ==========================================================================
-       Practical & High-Density A4 Statement Styles (Work-Ready)
-       ========================================================================== */
-    @@page {
-        size: A4 portrait;
-        margin: 0 !important; /* Removes browser default headers (title/date) and footers (URL link) */
-    }
+<link rel="stylesheet" href="~/css/statement.css" asp-append-version="true" />
 
-    .statement-sheet {
-        background: #ffffff;
-        border-radius: 12px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-        border: 1px solid #e2e8f0;
-        padding: 1.25rem;
-    }
+<div class="statement-page @modeClass" id="statementPage" data-mode="@Model.Mode">
 
-    /* Compact Header Bar */
-    .statement-header-box {
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        background: #f8fafc;
-        padding: 0.65rem 0.85rem;
-        margin-bottom: 0.65rem;
-    }
-
-    /* Compact 1-Line Financial Summary Strip */
-    .statement-summary-strip {
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        background: #ffffff;
-        margin-bottom: 0.75rem;
-        overflow: hidden;
-    }
-
-    .summary-strip-col {
-        padding: 0.45rem 0.65rem;
-        border-left: 1px solid #e2e8f0;
-        text-align: center;
-    }
-
-    .summary-strip-col:last-child {
-        border-left: none;
-    }
-
-    /* High-Density Work Table */
-    .table-statement {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.84rem;
-    }
-
-    .table-statement thead {
-        display: table-header-group; /* Repeats table header across multiple printed A4 pages */
-    }
-
-    .table-statement th {
-        background-color: #1e293b !important;
-        color: #ffffff !important;
-        font-weight: 700;
-        font-size: 0.80rem;
-        padding: 0.45rem 0.5rem;
-        border: 1px solid #1e293b;
-        text-align: center;
-        vertical-align: middle;
-        white-space: nowrap;
-    }
-
-    .table-statement td {
-        padding: 0.38rem 0.5rem;
-        border: 1px solid #cbd5e1;
-        vertical-align: middle;
-        line-height: 1.3;
-    }
-
-    .table-statement tfoot td {
-        background-color: #f1f5f9 !important;
-        font-weight: 700;
-        padding: 0.40rem 0.5rem;
-        border: 1px solid #cbd5e1;
-    }
-
-    /* Refined compact status pill that fits neatly within rows without border interference */
-    .status-pill {
-        display: inline-block;
-        font-size: 0.74rem;
-        line-height: 1.1;
-        padding: 2px 7px;
-        border-radius: 4px;
-        font-weight: 600;
-        vertical-align: middle;
-        white-space: nowrap;
-        border: 1px solid transparent;
-        box-sizing: border-box;
-    }
-
-    .status-pill-opening {
-        background-color: #f1f5f9;
-        color: #334155;
-        border-color: #cbd5e1;
-    }
-
-    .status-pill-receipt {
-        background-color: #ecfdf5;
-        color: #065f46;
-        border-color: #a7f3d0;
-    }
-
-    .status-pill-invoice {
-        background-color: #f0f9ff;
-        color: #0369a1;
-        border-color: #bae6fd;
-    }
-
-    .status-pill-return {
-        background-color: #fffbeb;
-        color: #92400e;
-        border-color: #fde68a;
-    }
-
-    .status-pill-disbursement {
-        background-color: #fef2f2;
-        color: #991b1b;
-        border-color: #fecaca;
-    }
-
-    /* Print Specific Overrides — Maximum rows per page */
-    @@media print {
-        html, body {
-            background: #ffffff !important;
-            color: #000000 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            font-size: 9.5pt !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        .d-print-none,
-        .sidebar,
-        .top-navbar,
-        header,
-        .btn,
-        .alert,
-        .form-control {
-            display: none !important;
-        }
-
-        .main-content,
-        .content-area {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-        }
-
-        .statement-sheet {
-            max-width: 100% !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            border: none !important;
-            border-radius: 0 !important;
-            padding: 8mm 10mm !important;
-            margin: 0 !important;
-        }
-
-        .statement-header-box {
-            background: #ffffff !important;
-            border: 1px solid #94a3b8 !important;
-            padding: 5px 8px !important;
-            margin-bottom: 6px !important;
-        }
-
-        .statement-summary-strip {
-            border: 1px solid #94a3b8 !important;
-            margin-bottom: 6px !important;
-        }
-
-        .summary-strip-col {
-            padding: 3px 5px !important;
-            border-left: 1px solid #cbd5e1 !important;
-        }
-
-        .table-statement {
-            font-size: 8.5pt !important;
-        }
-
-        .table-statement th {
-            padding: 3px 4px !important;
-            font-size: 8pt !important;
-        }
-
-        .table-statement td {
-            padding: 2.5px 4px !important;
-            line-height: 1.2 !important;
-            border-color: #94a3b8 !important;
-        }
-
-        .status-pill {
-            font-size: 7.5pt !important;
-            padding: 1px 4px !important;
-            line-height: 1.05 !important;
-            border: 1px solid #64748b !important;
-            background-color: transparent !important;
-            color: #000000 !important;
-        }
-
-        .statement-signatures,
-        .statement-tafqeet-box,
-        tr {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-        }
-    }
-</style>
-
-<!-- Top Interactive Toolbar (Screen Only) -->
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 d-print-none">
-    <div class="d-flex align-items-center gap-2">
-        <h5 class="mb-0 fw-bold text-dark">
-            <i class="bi bi-file-earmark-spreadsheet-fill text-primary me-2"></i>
-            كشف حساب @(Model.PartyType == "Vendor" ? "مورد" : "عميل"): <span class="text-primary">@Model.PartyName</span>
-        </h5>
-    </div>
-
-    <!-- Actions Dock -->
-    <div class="d-flex align-items-center gap-2">
-        <button type="button" class="btn btn-primary btn-sm shadow-sm fw-bold px-3" onclick="window.print()">
-            <i class="bi bi-printer-fill me-1"></i> طباعة كشف الحساب (A4)
-        </button>
-        <button type="button" class="btn btn-outline-success btn-sm shadow-sm" onclick="exportTableToCSV('statementLedgerTable', 'كشف_حساب_@(Model.PartyName)_@DateTime.Today.ToString("yyyyMMdd")')">
-            <i class="bi bi-file-earmark-excel me-1"></i> تصدير Excel
-        </button>
-        @if (Model.PartyType == "Customer")
-        {
-            <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.PartyId" class="btn btn-success btn-sm shadow-sm fw-bold">
-                <i class="bi bi-cash-stack me-1"></i> سند قبض
-            </a>
-            <a asp-controller="@Model.ControllerName" asp-action="Index" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-right me-1"></i> @(Model.ControllerName == "MaritimeCompany" ? "الشركات البحرية" : "العملاء")
-            </a>
-        }
-        else
-        {
-            <a asp-controller="Payment" asp-action="VendorPayment" asp-route-vendorId="@Model.PartyId" class="btn btn-danger btn-sm shadow-sm fw-bold">
-                <i class="bi bi-wallet2 me-1"></i> سند صرف
-            </a>
-            <a asp-controller="Vendor" asp-action="Index" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-right me-1"></i> الموردين
-            </a>
-        }
-    </div>
-</div>
-
-<!-- Date Range Filter Form (Screen Only) -->
-<div class="card shadow-sm border-0 mb-3 d-print-none">
-    <div class="card-body p-2 px-3">
-        <form method="get" asp-controller="@Model.ControllerName" asp-action="Statement" class="row g-2 align-items-end">
-            <input type="hidden" name="id" value="@Model.PartyId" />
-            <input type="hidden" name="mode" value="@Model.Mode" />
-            
-            <div class="col-sm-6 col-md-3">
-                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i> من تاريخ</label>
-                <input type="date" name="from" value="@(Model.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control form-control-sm" />
+    <!-- ================================================================
+         Screen toolbar: sticky under the app navbar, hidden in print
+         ================================================================ -->
+    <div class="st-toolbar d-print-none" id="stToolbar" role="toolbar" aria-label="أدوات كشف الحساب">
+        <div class="st-toolbar-row">
+            <div class="st-toolbar-group st-toolbar-title">
+                <span class="st-toolbar-eyebrow">@labels.StatementTitle</span>
+                <b>@Model.PartyName</b>
+                <span class="st-toolbar-code num-ltr">@Model.AccountCode</span>
             </div>
-            
-            <div class="col-sm-6 col-md-3">
-                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i> إلى تاريخ</label>
-                <input type="date" name="to" value="@(Model.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" class="form-control form-control-sm" />
-            </div>
-            
-            <div class="col-md-6 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
-                    <i class="bi bi-funnel-fill me-1"></i> تحديث الفترة
+
+            <div class="st-toolbar-group">
+                <button type="button" class="st-btn st-btn-primary" id="stPrint">
+                    <i class="bi bi-printer-fill"></i> طباعة / PDF
                 </button>
-                <a asp-controller="@Model.ControllerName" asp-action="Statement" asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i> كل الحركات
+                <button type="button" class="st-btn" id="stExport"
+                        data-export-table="statementLedgerTable"
+                        data-export-filename="كشف_حساب_@(Model.PartyName)_@today.ToString("yyyyMMdd")">
+                    <i class="bi bi-file-earmark-excel"></i> تصدير Excel
+                </button>
+                @if (!Model.IsVendor)
+                {
+                    <a asp-controller="Payment" asp-action="CustomerPayment" asp-route-customerId="@Model.PartyId"
+                       class="st-btn st-btn-success">
+                        <i class="bi bi-cash-stack"></i> تسجيل دفعة
+                    </a>
+                }
+                else
+                {
+                    <a asp-controller="Payment" asp-action="VendorPayment" asp-route-vendorId="@Model.PartyId"
+                       class="st-btn st-btn-danger">
+                        <i class="bi bi-wallet2"></i> تسجيل دفعة
+                    </a>
+                }
+                <a asp-controller="@Model.ControllerName" asp-action="Index" class="st-btn">
+                    <i class="bi bi-arrow-right"></i> @labels.PartyIndexLabel
                 </a>
             </div>
-        </form>
-    </div>
-</div>
 
-<!-- ==========================================================================
-     THE PRACTICAL WORK STATEMENT SHEET (High-Density Print Ready)
-     ========================================================================== -->
-<div class="statement-sheet">
-    @{
-        var isMaritime = Model.ControllerName == "MaritimeCompany" || Model.Lines.Any(l => l.DocumentType.Contains("توريد"));
-    }
-
-    <!-- 1. Compact Commercial Header Box -->
-    <div class="statement-header-box">
-        <div class="row align-items-center g-2">
-            <!-- Merchant Brand (Right) -->
-            <div class="col-3 text-start">
-                <h6 class="fw-bold text-dark mb-1" style="font-size: 0.95rem;">
-                    <i class="bi bi-building text-primary me-1"></i> المصري للتجارة والتوريدات
-                </h6>
-                <div class="text-muted" style="font-size: 0.74rem;">Elmasry Trading & Supplies</div>
-                <div class="text-muted" style="font-size: 0.70rem;">إدارة الحسابات العامة</div>
-                <div class="text-muted" style="font-size: 0.68rem;">س.ت: 104928 | ب.ض: 482-901-332</div>
-            </div>
-
-            <!-- Center: Vendor / Customer / Trading Company Name (Big & Bold) + Document Type under it -->
-            <div class="col-6 text-center">
-                <div class="fw-bolder text-dark mb-1" style="font-size: 1.45rem; line-height: 1.25;">
-                    @Model.PartyName
+            <div class="st-toolbar-group">
+                <div class="st-mode-switch" role="group" aria-label="طريقة العرض">
+                    <button type="button" data-st-mode="detailed"
+                            aria-pressed="@(Model.IsDetailed ? "true" : "false")">تفصيلي</button>
+                    <button type="button" data-st-mode="summary"
+                            aria-pressed="@(Model.IsDetailed ? "false" : "true")">مختصر</button>
                 </div>
-                <div class="fw-bold text-primary mb-1" style="font-size: 1.15rem; letter-spacing: 0.5px;">
-                    @if (isMaritime)
-                    {
-                        <span>[ كشف موجز لاوامر التوريد ]</span>
-                    }
-                    else if (Model.PartyType == "Vendor")
-                    {
-                        <span>[ كشف حساب مورد ]</span>
-                    }
-                    else
-                    {
-                        <span>[ كشف حساب عميل ]</span>
-                    }
-                </div>
-                <div class="text-muted" style="font-size: 0.74rem;">
-                    @(isMaritime ? "كشف حساب أوامر التوريد" : (Model.PartyType == "Vendor" ? "كشف حساب المشتريات والتوريدات" : "كشف حساب المبيعات والمسحوبات"))
-                </div>
-            </div>
-
-            <!-- Code & Period (Left) -->
-            <div class="col-3 text-end">
-                <div style="font-size: 0.75rem;">
-                    كود الحساب: <strong class="text-primary font-monospace">#@Model.PartyType.ToUpper().Substring(0, 3)-@Model.PartyId.ToString("D4")</strong>
-                </div>
-                <div style="font-size: 0.74rem;" class="text-muted font-tabular">
-                    الفترة: 
-                    @if (Model.From.HasValue && Model.To.HasValue)
-                    {
-                        <span>@Model.From.Value.ToString("yyyy-MM-dd") إلى @Model.To.Value.ToString("yyyy-MM-dd")</span>
-                    }
-                    else
-                    {
-                        <span>كافة الحركات التاريخية</span>
-                    }
-                </div>
-                <div class="text-muted" style="font-size: 0.72rem;">
-                    تاريخ الطباعة: <strong>@DateTime.Today.ToString("yyyy-MM-dd")</strong>
-                </div>
-                <div class="text-muted" style="font-size: 0.70rem;">
-                    العملة: <strong>الجنيه المصري (ج.م)</strong>
-                </div>
+                <button type="button" class="st-btn st-btn-icon" id="stThemeToggle"
+                        title="تبديل الوضع الليلي" aria-label="تبديل الوضع الليلي">
+                    <i class="bi bi-moon-stars"></i>
+                </button>
             </div>
         </div>
-    </div>
 
-    <!-- 2. Compact 4-Step Arithmetic Financial Formula Strip -->
-    <partial name="_StatementFormulaStrip" model="Model" />
+        <div class="st-toolbar-row st-toolbar-filters">
+            <form method="get" asp-controller="@Model.ControllerName" asp-action="Statement"
+                  class="st-filter-form" id="stFilterForm">
+                <input type="hidden" name="id" value="@Model.PartyId" />
+                <input type="hidden" name="mode" value="@Model.Mode" id="stModeField" />
 
-    <!-- Client-Side Instant Table Search Bar (Screen Only) -->
-    <div class="d-flex justify-content-between align-items-center mb-2 d-print-none">
-        <div class="input-group input-group-sm" style="max-width: 350px;">
-            <span class="input-group-text bg-white border-end-0 py-0"><i class="bi bi-search text-muted small"></i></span>
-            <input type="text" class="form-control form-control-sm border-start-0 py-1" placeholder="بحث سريع في الحركات..." data-table-search="statementLedgerTable" data-counter-target="statementCounter" />
-        </div>
-        <span class="badge bg-light text-muted border font-tabular" id="statementCounter" style="font-size: 0.75rem;">
-            عرض @Model.Lines.Count من إجمالي @Model.Lines.Count حركة
-        </span>
-    </div>
+                <label class="st-field">
+                    <span>من</span>
+                    <input type="date" name="from" id="stFrom"
+                           value="@(Model.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" />
+                </label>
+                <label class="st-field">
+                    <span>إلى</span>
+                    <input type="date" name="to" id="stTo"
+                           value="@(Model.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" />
+                </label>
+                <button type="submit" class="st-btn st-btn-primary">
+                    <i class="bi bi-funnel-fill"></i> تحديث الفترة
+                </button>
+                <a asp-controller="@Model.ControllerName" asp-action="Statement"
+                   asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode"
+                   class="st-btn @(hasAnyFilter ? "" : "is-disabled")" aria-disabled="@(hasAnyFilter ? "false" : "true")">
+                    <i class="bi bi-arrow-counterclockwise"></i> كل الحركات
+                </a>
 
-    <!-- 3. Chronological Statement Ledger Table (Unified + / - / Balance Flow) -->
-    @{
-        ViewData["LinkToCards"] = false;
-    }
-    <partial name="_StatementLedgerSection" model="Model" />
+                <div class="st-date-chips" role="group" aria-label="فترات سريعة">
+                    <a class="st-date-chip @(!hasAnyFilter ? "is-active" : "")"
+                       asp-controller="@Model.ControllerName" asp-action="Statement"
+                       asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode">كل الحركات</a>
+                    <a class="st-date-chip @(Model.From?.Date == last30 && Model.To?.Date == today ? "is-active" : "")"
+                       asp-controller="@Model.ControllerName" asp-action="Statement"
+                       asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode"
+                       asp-route-from="@last30.ToString("yyyy-MM-dd")"
+                       asp-route-to="@today.ToString("yyyy-MM-dd")">آخر 30 يوم</a>
+                    <a class="st-date-chip @(Model.From?.Date == monthStart && Model.To?.Date == today ? "is-active" : "")"
+                       asp-controller="@Model.ControllerName" asp-action="Statement"
+                       asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode"
+                       asp-route-from="@monthStart.ToString("yyyy-MM-dd")"
+                       asp-route-to="@today.ToString("yyyy-MM-dd")">الشهر الحالي</a>
+                </div>
+            </form>
 
-    <!-- 4. Compact 1-Line Tafqeet Strip -->
-    <div class="statement-tafqeet-box p-2 bg-light rounded border mb-3" style="font-size: 0.80rem;">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
-            <div>
-                <span class="text-muted fw-bold">الرصيد المتبقي كتابةً:</span>
-                <strong class="text-dark ms-1">
-                    @if (Math.Abs(Model.EndingBalance) < 0.005m)
-                    {
-                        <span class="text-success">الحساب خالص ومسدد بالكامل (صفر ج.م).</span>
-                    }
-                    else
-                    {
-                        <span>فقط @Tafqeet.ToArabicWords(Math.Abs(Model.EndingBalance)) لا غير</span>
-                    }
-                </strong>
-            </div>
-            <div>
-                <span class="badge bg-white text-dark border px-2 py-1 font-tabular" style="font-size: 0.72rem;">
-                    حالة الحساب: 
-                    @if (Math.Abs(Model.EndingBalance) < 0.005m)
-                    {
-                        <strong class="text-success">مسدد بالكامل</strong>
-                    }
-                    else if (Model.PartyType == "Customer")
-                    {
-                        <strong class="@(Model.EndingBalance > 0 ? "text-danger" : "text-info")">
-                            @(Model.EndingBalance > 0 ? "مستحق على العميل (لنا)" : "فائض لصالح العميل (له)")
-                        </strong>
-                    }
-                    else
-                    {
-                        <strong class="@(Model.EndingBalance > 0 ? "text-danger" : "text-info")">
-                            @(Model.EndingBalance > 0 ? "مستحق للمورد (علينا)" : "مدفوع مقدماً للمورد (لنا)")
-                        </strong>
-                    }
+            <div class="st-filter-tools">
+                <label class="st-search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input type="search" id="stSearch" placeholder="بحث برقم المستند أو البيان أو الصنف…"
+                           aria-label="بحث في حركات كشف الحساب" autocomplete="off" />
+                </label>
+
+                <label class="st-field st-field-inline">
+                    <span>النوع</span>
+                    <select id="stKind" aria-label="فلترة نوع الحركة">
+                        <option value="all">كل الحركات</option>
+                        <option value="invoice">فواتير</option>
+                        <option value="payment">مدفوعات</option>
+                        <option value="return">مرتجعات</option>
+                        <option value="refund">استرداد</option>
+                        <option value="opening">رصيد أول المدة</option>
+                    </select>
+                </label>
+
+                <div class="st-expand-tools">
+                    <button type="button" class="st-btn st-btn-sm" id="stExpandAll">توسيع الكل</button>
+                    <button type="button" class="st-btn st-btn-sm" id="stCollapseAll">طي الكل</button>
+                </div>
+
+                <span class="st-count" id="stVisibleCount" aria-live="polite">
+                    عرض @Model.Lines.Count من إجمالي @Model.Lines.Count حركة
                 </span>
             </div>
         </div>
     </div>
 
-    <!-- 5. Compact Dual Signatures (Does not push onto an empty extra page) -->
-    <div class="statement-signatures pt-2 border-top">
-        <div class="row text-center g-2" style="font-size: 0.78rem;">
-            <div class="col-6">
-                <div class="fw-bold text-dark mb-3">توقيع وختم الإدارة المالية / الحسابات</div>
-                <div class="d-inline-block border-bottom border-dark pb-1 px-4 text-muted" style="font-size: 0.72rem;">
-                    ............................................................
-                </div>
-            </div>
-            <div class="col-6">
-                <div class="fw-bold text-dark mb-3">توقيع واعتماد صاحب الحساب (@(Model.PartyType == "Vendor" ? "المورد" : "العميل"))</div>
-                <div class="d-inline-block border-bottom border-dark pb-1 px-4 text-muted" style="font-size: 0.72rem;">
-                    ............................................................
-                </div>
-            </div>
+    <!-- Client-side error panel (screen only) -->
+    <div class="st-error-panel d-print-none" id="stErrorPanel" role="alert" hidden>
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div>
+            <b>حصلت مشكلة في تحميل أدوات الكشف</b>
+            <span>الكشف نفسه ظاهر بالكامل. جرّب تحديث الصفحة لو المحتوى مش ظاهر صح.</span>
         </div>
+        <button type="button" class="st-btn st-btn-sm" id="stRetry">إعادة المحاولة</button>
     </div>
 
+    <!-- ================================================================
+         The printed statement sheet
+         ================================================================ -->
+    <div class="statement-sheet" id="statementSheet">
+        <partial name="_StatementHeader" model="Model" />
+        <partial name="_StatementHero" model="Model" />
+        <partial name="_StatementMovements" model="Model" />
+        <partial name="_StatementUnpaidInvoices" model="Model" />
+        <partial name="_StatementFooter" model="Model" />
+    </div>
+
+    <!-- Loading overlay (screen only) -->
+    <div class="st-loading d-print-none" id="stLoading" hidden role="status" aria-live="polite">
+        <span class="st-spinner" aria-hidden="true"></span>
+        <span>جاري تحميل الكشف…</span>
+    </div>
+
+    <!-- Copy toast -->
+    <div class="st-toast d-print-none" id="stToast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="st-visually-hidden" aria-hidden="true">@partyMeta</div>
 </div>
+
+<script src="~/js/statement.js" asp-append-version="true"></script>

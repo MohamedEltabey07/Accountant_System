@@ -1,0 +1,25 @@
+@model Accountant_sys.Models.StatementViewModel
+@using Accountant_sys.Models
+@using BLL.Service
+@{
+    var labels = Model.Labels;
+    var ending = Math.Abs(Model.EndingBalance);
+}
+
+<p class="st-words">
+    <b>@labels.FinalBalanceLabel:</b>
+    <b class="num-ltr">@StatementBuilder.FormatMoney(ending) ج.م</b>
+    @if (ending < 0.005m)
+    {
+        <span>— الحساب خالص ومسدد بالكامل</span>
+    }
+    else
+    {
+        <span>— @Tafqeet.ToArabicWords(ending)</span>
+    }
+</p>
+
+<div class="st-sign">
+    <div>@labels.CompanyStampLabel</div>
+    <div>@labels.PartySignatureLabel</div>
+</div>

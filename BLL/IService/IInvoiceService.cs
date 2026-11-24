@@ -34,5 +34,15 @@ namespace BLL.IService
             int? vendorId,
             DateTime? from,
             DateTime? to);
+        // Posted invoice settlement snapshots for the statement's unpaid section
+        // and row status chips. Paid/returns are evaluated as of <paramref name="asOf"/>
+        // so historical statements remain accurate.
+        Task<List<StatementInvoiceSettlementDto>> GetStatementInvoiceSettlementsAsync(
+            InvoiceType type,
+            int? customerId,
+            int? vendorId,
+            DateTime? from,
+            DateTime? to,
+            DateTime? asOf);
     }
 }

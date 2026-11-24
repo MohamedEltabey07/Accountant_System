@@ -21,6 +21,14 @@ namespace DAL.IRepos
         Task<InvoiceAdditionalCharge?> GetChargeWithInvoiceAsync(int chargeId);
         // Posted invoices (with items + party) for customer & vendor detailed statements.
         Task<List<Invoice>> GetPostedInvoicesWithItemsAsync(InvoiceType type, int? customerId = null, int? vendorId = null);
+        // Posted invoices with allocation + credit-note dates for statement
+        // settlement as of a statement end date.
+        Task<List<Invoice>> GetPostedInvoicesForStatementAsync(
+            InvoiceType type,
+            int? customerId,
+            int? vendorId,
+            DateTime? from,
+            DateTime? to);
 
     }
 }

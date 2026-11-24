@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Accountant_sys\Accountant_sys.csproj" />
     <ProjectReference Include="..\BLL\BLL.csproj" />
   </ItemGroup>
 

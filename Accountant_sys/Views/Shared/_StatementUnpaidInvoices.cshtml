@@ -1,0 +1,130 @@
+@model Accountant_sys.Models.StatementViewModel
+@using Accountant_sys.Models
+@{
+    var labels = Model.Labels;
+    var hasOnAccount = Model.OnAccountTotal > 0.005m;
+    var hasRefunds = Model.HasRefunds;
+    var hasOverpayment = Model.HasOverpayment;
+    var hasBridge = Model.HasBridge;
+    var invoiceCount = Model.UnpaidInvoices.Count;
+    var countText = invoiceCount == 1 ? "فاتورة واحدة" : $"{invoiceCount} فاتورة";
+}
+
+<section class="st-unpaid" id="unpaidSection" aria-labelledby="unpaidHeading">
+    <h3 class="st-h3" id="unpaidHeading">@labels.UnpaidSectionTitle</h3>
+    <p class="st-hint">
+        @labels.UnpaidHintPrefix
+        @if (hasOnAccount)
+        {
+            <span id="onAccountHint">@string.Format(labels.OnAccountHintFormat, StatementBuilder.FormatMoney(Model.OnAccountTotal))</span>
+        }
+    </p>
+
+    @if (Model.UnpaidInvoices.Any())
+    {
+        <div class="table-responsive">
+            <table class="st-table st-unpaid-table">
+                <thead>
+                    <tr>
+                        <th scope="col">@labels.InvoiceNumberColumnLabel</th>
+                        <th scope="col">التاريخ</th>
+                        <th scope="col" class="st-n">@labels.InvoiceValueColumnLabel</th>
+                        <th scope="col" class="st-n">@labels.PaidFromInvoiceColumnLabel</th>
+                        <th scope="col" class="st-n">@labels.RemainingColumnLabel</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var invoice in Model.UnpaidInvoices)
+                    {
+                        <tr>
+                            <td>
+                                <button type="button" class="st-doc" data-jump-invoice="@invoice.InvoiceId"
+                                        title="الانتقال إلى حركة الفاتورة">@invoice.InvoiceNumber</button>
+                            </td>
+                            <td class="num-ltr">@StatementBuilder.FormatDate(invoice.TransactionDate)</td>
+                            <td class="st-num-cell st-n">
+                                <span class="st-num num-ltr">@StatementBuilder.FormatMoney(invoice.TotalAmount)</span>
+                            </td>
+                            <td class="st-num-cell st-n">
+                                @if (invoice.PaidAmount > 0.005m)
+                                {
+                                    <span class="st-num num-ltr">@StatementBuilder.FormatMoney(invoice.PaidAmount)</span>
+                                }
+                                else
+                                {
+                                    <span class="st-dash">—</span>
+                                }
+                                @if (invoice.ReturnsAmount > 0.005m)
+                                {
+                                    <div class="st-doc-sub">مرتجع: <span class="num-ltr">@StatementBuilder.FormatMoney(invoice.ReturnsAmount)</span></div>
+                                }
+                            </td>
+                            <td class="st-num-cell st-n">
+                                <span class="st-num st-rem num-ltr">@StatementBuilder.FormatMoney(invoice.RemainingAmount)</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4">@labels.UnpaidTotalLabel (@countText)</td>
+                        <td class="st-num-cell st-n">
+                            <span class="st-num num-ltr">@StatementBuilder.FormatMoney(Model.UnpaidTotal)</span>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="st-empty st-empty-inline">
+            <i class="bi bi-check2-circle"></i>
+            <b>مفيش فواتير لسه متسددتش</b>
+            <span>كل فواتير الفترة دي مسددة بالكامل.</span>
+        </div>
+    }
+
+    <div class="st-recon" aria-label="ربط الأرقام">
+        <div>
+            <span>متبقي الفواتير</span>
+            <b class="num-ltr">@StatementBuilder.FormatMoney(Model.UnpaidTotal)</b>
+        </div>
+        <div>
+            <span>+ @labels.OpeningLabel</span>
+            <b class="num-ltr">@StatementBuilder.FormatMoney(Model.OpeningDisplay)</b>
+        </div>
+        @if (hasOnAccount)
+        {
+            <div>
+                <span>− @labels.OnAccountLabel</span>
+                <b class="num-ltr">@StatementBuilder.FormatMoney(Model.OnAccountTotal)</b>
+            </div>
+        }
+        @if (hasRefunds)
+        {
+            <div>
+                <span>+ @labels.RefundsLabel</span>
+                <b class="num-ltr">@StatementBuilder.FormatMoney(Model.TotalRefunds)</b>
+            </div>
+        }
+        @if (hasOverpayment)
+        {
+            <div>
+                <span>− أرصدة دائنة على فواتير</span>
+                <b class="num-ltr">@StatementBuilder.FormatMoney(Model.OverpaymentTotal)</b>
+            </div>
+        }
+        @if (hasBridge)
+        {
+            <div>
+                <span>± تسويات على فواتير سابقة</span>
+                <b class="num-ltr">@StatementBuilder.FormatMoney(Model.CrossPeriodBridge)</b>
+            </div>
+        }
+        <div class="st-recon-tot">
+            <span>= @labels.FinalBalanceLabel</span>
+            <b class="num-ltr">@StatementBuilder.FormatMoney(Math.Abs(Model.EndingBalance)) ج.م</b>
+        </div>
+    </div>
+</section>

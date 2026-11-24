@@ -1,0 +1,73 @@
+@model Accountant_sys.Models.StatementViewModel
+@using Accountant_sys.Models
+@{
+    var labels = Model.Labels;
+    var opening = Model.OpeningDisplay;
+    var hasReturns = Model.HasReturns;
+    var hasRefunds = Model.HasRefunds;
+}
+
+<section class="st-hero" aria-label="@Model.HeroBalanceLabel">
+    <div class="st-hero-lbl">@Model.HeroBalanceLabel</div>
+    <span class="st-hero-amount num-ltr">
+        @StatementBuilder.FormatMoney(Math.Abs(Model.EndingBalance))
+        <small>ج.م</small>
+    </span>
+
+    <div class="st-eq">
+        <span>@labels.OpeningLabel</span>
+        <b class="num-ltr">@StatementBuilder.FormatMoney(opening)</b>
+        <i>+</i>
+        <span>@labels.InvoicesLabel</span>
+        <b class="num-ltr">@StatementBuilder.FormatMoney(Model.TotalInvoices)</b>
+        <i>−</i>
+        <span>@labels.PaidLabel</span>
+        <b class="num-ltr">@StatementBuilder.FormatMoney(Model.TotalPayments)</b>
+        @if (hasReturns)
+        {
+            <i>−</i>
+            <span>@labels.ReturnsLabel</span>
+            <b class="num-ltr">@StatementBuilder.FormatMoney(Model.TotalReturns)</b>
+        }
+        @if (hasRefunds)
+        {
+            <i>+</i>
+            <span>@labels.RefundsLabel</span>
+            <b class="num-ltr">@StatementBuilder.FormatMoney(Model.TotalRefunds)</b>
+        }
+        <i>=</i>
+        <span>@labels.RemainingColumnLabel</span>
+        <b class="num-ltr">@StatementBuilder.FormatMoney(Math.Abs(Model.EndingBalance))</b>
+    </div>
+
+    <div class="st-insights d-print-none">
+        @if (Model.HasUnpaidInvoices)
+        {
+            <button type="button" class="st-chip" data-scroll-to="unpaidSection"
+                    title="الانتقال إلى فواتير لسه متسددتش">
+                <i class="bi bi-receipt-cutoff"></i>
+                <span class="num-ltr">@Model.UnpaidInvoices.Count</span>
+                <span>فاتورة لسه متسددتش</span>
+            </button>
+        }
+        @if (Model.OnAccountTotal > 0.005m)
+        {
+            <button type="button" class="st-chip" data-scroll-to="onAccountHint"
+                    title="الانتقال إلى الدفعات غير الموزعة">
+                <i class="bi bi-wallet2"></i>
+                <span>@labels.OnAccountRowLabel</span>
+                <b class="num-ltr">@StatementBuilder.FormatMoney(Model.OnAccountTotal) ج.م</b>
+            </button>
+        }
+        @if (Model.LastPaymentAmount.HasValue && Model.LastPaymentDate.HasValue)
+        {
+            <button type="button" class="st-chip" data-scroll-to="lastPaymentRow"
+                    title="الانتقال إلى آخر دفعة">
+                <i class="bi bi-clock-history"></i>
+                <span>آخر دفعة</span>
+                <b class="num-ltr">@StatementBuilder.FormatMoney(Model.LastPaymentAmount.Value) ج.م</b>
+                <span class="num-ltr">@StatementBuilder.FormatDate(Model.LastPaymentDate.Value)</span>
+            </button>
+        }
+    </div>
+</section>

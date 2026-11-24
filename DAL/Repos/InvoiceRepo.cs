@@ -214,6 +214,45 @@ namespace DAL.Repos
                 .ThenBy(i => i.Id)
                 .ToListAsync();
         }
+
+        public async Task<List<Invoice>> GetPostedInvoicesForStatementAsync(
+            InvoiceType type,
+            int? customerId,
+            int? vendorId,
+            DateTime? from,
+            DateTime? to)
+        {
+            var query = _context.Invoices
+                .AsNoTracking()
+                .Include(i => i.PaymentAllocations)
+                    .ThenInclude(pa => pa.CashTransaction)
+                .Include(i => i.CreditNotes)
+                .Where(i => i.Type == type && i.Status == InvoiceStatus.Posted)
+                .AsQueryable();
+
+            if (customerId.HasValue)
+                query = query.Where(i => i.CustomerId == customerId.Value);
+
+            if (vendorId.HasValue)
+                query = query.Where(i => i.VendorId == vendorId.Value);
+
+            if (from.HasValue)
+            {
+                var fromDate = from.Value.Date;
+                query = query.Where(i => i.TransactionDate >= fromDate);
+            }
+
+            if (to.HasValue)
+            {
+                var toExclusive = to.Value.Date.AddDays(1);
+                query = query.Where(i => i.TransactionDate < toExclusive);
+            }
+
+            return await query
+                .OrderBy(i => i.TransactionDate)
+                .ThenBy(i => i.Id)
+                .ToListAsync();
+        }
     }
 }
 

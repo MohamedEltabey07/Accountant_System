@@ -1,0 +1,147 @@
+@model BLL.DTOs.MaritimeCompany.OutGoingData.MaritimeSupplyOrderDto
+@using Accountant_sys.Models
+@{
+    var notes = ViewData["OrderNotes"] as string;
+    var hasItemDiscount = Model.Items.Any(i => i.LineDiscountAmount > 0);
+    var hasExternal = !string.IsNullOrWhiteSpace(Model.ExternalOrderNumber)
+        && !string.Equals(Model.ExternalOrderNumber, Model.InvoiceNumber, StringComparison.OrdinalIgnoreCase);
+    var supplyDate = Model.SupplyOrderDate ?? Model.TransactionDate;
+}
+
+<div class="ledger-detail-panel is-maritime">
+    <div class="detail-meta-bar">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span>
+                أمر التوريد:
+                <span class="detail-order-highlight num-ltr">@Model.DisplayOrderNumber</span>
+            </span>
+            @if (hasExternal)
+            {
+                <span class="text-muted">
+                    المستند الداخلي: <span class="num-ltr fw-semibold">@Model.InvoiceNumber</span>
+                </span>
+            }
+            <span class="text-muted">
+                تاريخ التوريد: <span class="num-ltr fw-semibold">@StatementBuilder.FormatDate(supplyDate)</span>
+                @if (Model.SupplyOrderDate.HasValue && Model.SupplyOrderDate.Value.Date != Model.TransactionDate.Date)
+                {
+                    <span class="ms-1">(ترحيل: <span class="num-ltr">@StatementBuilder.FormatDate(Model.TransactionDate)</span>)</span>
+                }
+            </span>
+            @if (!string.IsNullOrWhiteSpace(Model.CompanyName))
+            {
+                <span class="text-muted">الشركة: <strong class="text-dark">@Model.CompanyName</strong></span>
+            }
+        </div>
+        <div>
+            إجمالي الأمر: <strong class="num-ltr text-dark">@StatementBuilder.FormatMoney(Model.TotalAmount) ج.م</strong>
+        </div>
+    </div>
+
+    @if (!Model.Items.Any())
+    {
+        <div class="text-muted small py-1">لا توجد بنود مسجلة على أمر التوريد.</div>
+    }
+    else
+    {
+        <table class="detail-subtable">
+            <thead>
+                <tr>
+                    <th style="width: 34px;">#</th>
+                    <th class="text-start">الصنف</th>
+                    <th style="width: 110px;">الوزن (كجم)</th>
+                    <th style="width: 100px;">سعر الكجم (ج.م)</th>
+                    @if (hasItemDiscount)
+                    {
+                        <th style="width: 90px;">الخصم (ج.م)</th>
+                    }
+                    <th style="width: 115px;">الإجمالي (ج.م)</th>
+                    <th style="width: 95px;" class="d-print-none">مصدر الصنف</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    var idx = 1;
+                    foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td class="text-center text-muted num-ltr">@(idx++)</td>
+                            <td class="text-start fw-semibold text-dark">@item.ProductName</td>
+                            <td class="text-center">
+                                <span class="num-ltr">@StatementBuilder.FormatQuantity(item.Quantity)</span>
+                                <span class="text-muted small ms-1">كجم</span>
+                            </td>
+                            <td class="text-center num-ltr">@StatementBuilder.FormatMoney(item.UnitPrice)</td>
+                            @if (hasItemDiscount)
+                            {
+                                <td class="text-center num-ltr @(item.LineDiscountAmount > 0 ? "text-danger" : "text-muted")">
+                                    @(item.LineDiscountAmount > 0 ? "-" + StatementBuilder.FormatMoney(item.LineDiscountAmount) : "-")
+                                </td>
+                            }
+                            <td class="text-center num-ltr fw-bold">@StatementBuilder.FormatMoney(item.LineTotal)</td>
+                            <td class="text-center d-print-none">
+                                <span class="badge @(item.IsFromFreezer ? "bg-info-subtle text-info-emphasis border border-info-subtle" : "bg-light text-secondary border")" style="font-size: 0.68rem;">
+                                    @(item.IsFromFreezer ? "من الثلاجة" : "توريد خارجي")
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (Model.HasCharges)
+    {
+        <div class="detail-charges-title">المصاريف والتكاليف الإضافية:</div>
+        <table class="detail-subtable">
+            <thead>
+                <tr>
+                    <th style="width: 34px;">#</th>
+                    <th class="text-start">البيان</th>
+                    <th style="width: 85px;">الكمية</th>
+                    <th style="width: 90px;">سعر الوحدة</th>
+                    <th style="width: 100px;">القيمة (ج.م)</th>
+                    <th style="width: 115px;">الاحتساب</th>
+                    <th class="text-start">ملاحظات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    var cIdx = 1;
+                    foreach (var charge in Model.Charges)
+                    {
+                        <tr>
+                            <td class="text-center text-muted num-ltr">@(cIdx++)</td>
+                            <td class="text-start fw-semibold">@charge.Description</td>
+                            <td class="text-center num-ltr">@(charge.Quantity.HasValue ? StatementBuilder.FormatQuantity(charge.Quantity.Value) : "-")</td>
+                            <td class="text-center num-ltr">@(charge.UnitPrice.HasValue ? StatementBuilder.FormatMoney(charge.UnitPrice.Value) : "-")</td>
+                            <td class="text-center num-ltr fw-bold">@StatementBuilder.FormatMoney(charge.Amount)</td>
+                            <td class="text-center">@(charge.IsBillableToCompany ? "محتسب على الشركة" : "مصروف داخلي")</td>
+                            <td class="text-start text-muted">@(string.IsNullOrWhiteSpace(charge.Notes) ? "-" : charge.Notes.Trim())</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" class="text-start">إجمالي المحتسب على الشركة ضمن إجمالي الأمر:</td>
+                    <td class="text-center num-ltr text-danger">@StatementBuilder.FormatMoney(Model.BillableChargesTotal)</td>
+                    <td colspan="2" class="text-start text-muted small">
+                        @if (Model.InternalChargesTotal > 0)
+                        {
+                            <span>مصروفات داخلية غير محملة: <span class="num-ltr">@StatementBuilder.FormatMoney(Model.InternalChargesTotal) ج.م</span></span>
+                        }
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(notes))
+    {
+        <div class="detail-note-box">
+            <strong>ملاحظات الأمر:</strong> @notes.Trim()
+        </div>
+    }
+</div>

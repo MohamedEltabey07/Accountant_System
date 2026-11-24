@@ -1,8 +1,5 @@
 using Accountant_sys.Models;
-using BLL.DTOs.Cash.OutGoingData;
-using BLL.DTOs.CreditNote.OutGoingData;
 using BLL.DTOs.Invoice.OutGoingData;
-using BLL.DTOs.OpeningBalance.OutGoingData;
 using BLL.DTOs.Vendor.InComingData;
 using BLL.DTOs.Vendor.OutGoingData;
 using BLL.IService;
@@ -57,8 +54,11 @@ namespace Accountant_sys.Controllers
             var vendor = await _vendorService.GetVendorByIdAsync(id);
             if (vendor == null) return NotFound();
 
-            var ledger = await BuildVendorLedgerAsync(id, StatementBuilder.HistoryStart, StatementBuilder.HistoryEnd);
-            ViewBag.StatementSummary = StatementBuilder.Build(ledger, isVendor: true, vendor.Id, vendor.Name, "Vendor", null, null);
+            var ledger = await StatementLedgerLoader.LoadPartyLedgerAsync(
+                StatementAccountType.Vendor, id, _openingBalanceService, _invoiceService, _creditNoteService, _cashTransactionService);
+            ViewBag.StatementSummary = StatementBuilder.Build(
+                ledger, isVendor: true, vendor.Id, vendor.Name, "Vendor", null, null,
+                StatementAccountType.Vendor, vendor.PhoneNumber, vendor.Address);
             return View(vendor);
         }
 
@@ -73,9 +73,12 @@ namespace Accountant_sys.Controllers
             var activeVendors = await _vendorService.GetActiveVendorAsync() ?? new List<VendorDto>();
             ViewBag.Parties = new SelectList(activeVendors, "Id", "Name");
 
-            ViewBag.Mode = string.Equals(mode, "detailed", StringComparison.OrdinalIgnoreCase)
-                ? "detailed"
-                : "summary";
+            // Detailed is the reference default; "summary" stays available
+            // through the on-screen toggle and the URL.
+            var viewMode = string.Equals(mode, "summary", StringComparison.OrdinalIgnoreCase)
+                ? "summary"
+                : "detailed";
+            ViewBag.Mode = viewMode;
 
             if (id == null || id <= 0)
                 return View();
@@ -83,124 +86,14 @@ namespace Accountant_sys.Controllers
             var vendor = activeVendors.FirstOrDefault(v => v.Id == id)
                 ?? (await _vendorService.GetAllVendorAsync() ?? new List<VendorDto>()).FirstOrDefault(v => v.Id == id);
             if (vendor == null) return NotFound();
-            var fromDate = from ?? StatementBuilder.HistoryStart;
-            var toDate = to ?? StatementBuilder.HistoryEnd;
-            var ledger = await BuildVendorLedgerAsync(id.Value, fromDate, toDate);
-            var model = StatementBuilder.Build(ledger, isVendor: true, vendor.Id, vendor.Name, "Vendor", from, to);
-            model.Mode = (string)ViewBag.Mode;
 
-            if (ViewBag.Mode == "detailed")
-            {
-                ViewBag.DetailedInvoices = await _invoiceService.GetPostedInvoiceDetailsAsync(
-                        InvoiceType.VendorPurchase, null, vendor.Id, from, to)
-                    ?? new List<StatementInvoiceDetailDto>();
-            }
+            var model = await StatementPageDataLoader.LoadAsync(
+                StatementAccountType.Vendor, vendor.Id, vendor.Name, "Vendor", from, to, viewMode,
+                vendor.PhoneNumber, vendor.Address,
+                _openingBalanceService, _invoiceService, _creditNoteService, _cashTransactionService);
 
+            ViewBag.DetailedInvoices = model.DetailedInvoices;
             return View(model);
-        }
-
-        private async Task<List<StatementLine>> BuildVendorLedgerAsync(int vendorId, DateTime from, DateTime to)
-        {
-            var lines = new List<StatementLine>();
-            var historyStart = StatementBuilder.HistoryStart;
-
-            var openings = await _openingBalanceService.GetAllOpeningBalancesAsync() ?? new List<OpeningBalanceDto>();
-            var opening = openings.FirstOrDefault(o => o.VendorId == vendorId);
-            if (opening != null)
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = opening.EffectiveDate,
-                    Timestamp = opening.CreatedAt,
-                    SortGroup = 0,
-                    Kind = StatementLineKind.OpeningBalance,
-                    DocumentId = opening.Id,
-                    DocumentNo = "OP" + opening.Id.ToString("D4"),
-                    DocumentType = "رصيد افتتاحي",
-                    Description = StatementBuilder.FormatOpeningDescription(opening),
-                    Notes = opening.Notes,
-                    Credit = opening.Amount
-                });
-            }
-
-            var invoices = await _invoiceService.GetInvoicesAsync(InvoiceType.VendorPurchase, InvoiceStatus.Posted) ?? new List<InvoiceDto>();
-            var vendorInvoices = invoices.Where(i => i.VendorId == vendorId).ToList();
-            foreach (var invoice in vendorInvoices)
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = invoice.TransactionDate,
-                    Timestamp = invoice.CreatedAt,
-                    Kind = StatementLineKind.Invoice,
-                    DocumentId = invoice.Id,
-                    DocumentNo = invoice.InvoiceNumber,
-                    DocumentType = "فاتورة مشتريات",
-                    Description = StatementBuilder.FormatInvoiceDescription(invoice, isVendor: true, isMaritime: false),
-                    Notes = invoice.Notes,
-                    Credit = invoice.TotalAmount
-                });
-            }
-
-            var returns = await _creditNoteService.GetCreditNotesAsync(
-                CreditNoteType.VendorReturn, CreditNoteStatus.Posted,
-                historyStart, to) ?? new List<CreditNoteDto>();
-            var invoiceIds = vendorInvoices.Select(i => i.Id).ToHashSet();
-            foreach (var note in returns.Where(n => invoiceIds.Contains(n.OriginalInvoiceId)))
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = note.TransactionDate,
-                    Timestamp = note.CreatedAt,
-                    Kind = StatementLineKind.CreditNoteReturn,
-                    DocumentId = note.Id,
-                    DocumentNo = note.CreditNoteNumber,
-                    DocumentType = "إشعار مرتجع",
-                    Description = StatementBuilder.FormatCreditNoteDescription(note),
-                    Notes = note.Reason,
-                    CreditNote = note,
-                    Debit = note.TotalAmount
-                });
-            }
-
-            var payments = await _cashTransactionService.GetTransactionsAsync(
-                historyStart, to, CashCategory.VendorPayment, CashDirection.Out) ?? new List<CashTransactionDto>();
-            foreach (var payment in payments.Where(p => p.VendorId == vendorId))
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = payment.TransactionDate,
-                    Timestamp = payment.CreatedAt,
-                    Kind = StatementLineKind.VendorPayment,
-                    DocumentId = payment.Id,
-                    DocumentNo = "VCH" + payment.Id.ToString("D6"),
-                    DocumentType = "سند صرف (دفع للمورد)",
-                    Description = StatementBuilder.FormatPaymentDescription(payment, isVendor: true),
-                    Notes = payment.Notes,
-                    CashTransaction = payment,
-                    Debit = payment.Amount
-                });
-            }
-
-            var refunds = await _cashTransactionService.GetTransactionsAsync(
-                historyStart, to, CashCategory.VendorRefund, CashDirection.In) ?? new List<CashTransactionDto>();
-            foreach (var refund in refunds.Where(p => p.VendorId == vendorId))
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = refund.TransactionDate,
-                    Timestamp = refund.CreatedAt,
-                    Kind = StatementLineKind.VendorRefund,
-                    DocumentId = refund.Id,
-                    DocumentNo = "VRF" + refund.Id.ToString("D6"),
-                    DocumentType = "سند استرداد نقدي من المورد",
-                    Description = string.IsNullOrWhiteSpace(refund.Notes) ? "استرداد نقدي من المورد (مرتجع)" : refund.Notes.Trim(),
-                    Notes = refund.Notes,
-                    CashTransaction = refund,
-                    Credit = refund.Amount
-                });
-            }
-
-            return lines;
         }
 
         // ==========================================

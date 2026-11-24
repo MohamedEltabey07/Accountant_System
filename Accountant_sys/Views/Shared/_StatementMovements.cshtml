@@ -1,0 +1,362 @@
+@model Accountant_sys.Models.StatementViewModel
+@using System.Globalization
+@using Accountant_sys.Models
+@using BLL.DTOs.Invoice.OutGoingData
+@using BLL.DTOs.MaritimeCompany.OutGoingData
+@{
+    var labels = Model.Labels;
+    var isVendor = Model.IsVendor;
+
+    var detailedInvoices = Model.DetailedInvoices.Any()
+        ? Model.DetailedInvoices
+        : (ViewData["DetailedInvoices"] as List<StatementInvoiceDetailDto> ?? new List<StatementInvoiceDetailDto>());
+    var invoicesById = detailedInvoices.GroupBy(i => i.InvoiceId).ToDictionary(g => g.Key, g => g.First());
+
+    var supplyOrders = Model.SupplyOrders.Any()
+        ? Model.SupplyOrders
+        : (ViewData["SupplyOrders"] as List<MaritimeSupplyOrderDto> ?? new List<MaritimeSupplyOrderDto>());
+    var ordersById = supplyOrders.GroupBy(o => o.InvoiceId).ToDictionary(g => g.Key, g => g.First());
+
+    var dayGroups = Model.Lines
+        .GroupBy(l => l.Date.Date)
+        .Select((g, index) => new { Date = g.Key, Key = $"day-{index}", Lines = g.ToList() })
+        .ToList();
+
+    var lastPaymentLine = Model.Lines
+        .Where(l => (l.Kind == StatementLineKind.VendorPayment || l.Kind == StatementLineKind.CustomerReceipt)
+                    && l.CashTransaction != null)
+        .OrderBy(l => l.Date)
+        .ThenBy(l => l.Timestamp)
+        .ThenBy(l => l.DocumentId)
+        .LastOrDefault();
+
+    var periodAdditions = Model.TotalAdditions - Model.TotalOpening;
+    var txCounter = 0;
+}
+
+<section class="st-movements" id="movementsSection" aria-labelledby="movementsHeading">
+    <h3 class="st-h3" id="movementsHeading">حركة الحساب</h3>
+    <p class="st-hint">@labels.BalanceHint</p>
+
+    <div class="table-responsive">
+        <table class="st-table" id="statementLedgerTable">
+            <thead>
+                <tr>
+                    <th scope="col" class="st-col-type">النوع</th>
+                    <th scope="col" class="st-col-doc">الرقم</th>
+                    <th scope="col" class="st-n">@labels.InvoiceColumnLabel</th>
+                    <th scope="col" class="st-n">@labels.PaidColumnLabel</th>
+                    <th scope="col" class="st-n">@labels.RemainingColumnLabel</th>
+                </tr>
+            </thead>
+
+            @if (Math.Abs(Model.BeginningBalance) >= 0.005m)
+            {
+                var carryDate = Model.From
+                    ?? (Model.Lines.FirstOrDefault()?.Date.Date ?? DateTime.Today);
+                var carryIsOpening = Math.Abs(Model.TotalOpening) < 0.005m;
+                var carryLabel = carryIsOpening ? labels.OpeningLabel : "الرصيد السابق";
+                var carryHint = carryIsOpening
+                    ? "رصيد مرحّل من قبل بداية الفترة المحددة"
+                    : "حركات سابقة على بداية الفترة المحددة";
+                var carryPlus = isVendor ? Model.BeginningBalance : Model.BeginningBalance;
+                <tbody class="st-day-head" data-day="carry">
+                    <tr class="st-date"><td colspan="5"><span class="num-ltr">@StatementBuilder.FormatDate(carryDate)</span></td></tr>
+                </tbody>
+                <tbody class="st-mv-group" data-day="carry" data-kind="opening" data-search="@carryLabel @carryHint">
+                    <tr class="st-main" id="carryRow">
+                        <td class="st-cell-type" data-label="النوع">
+                            <span class="st-badge st-badge-opening">@carryLabel</span>
+                        </td>
+                        <td class="st-cell-doc" data-label="الرقم">
+                            <span class="st-doc st-doc-static">—</span>
+                            <div class="st-doc-sub">@carryHint</div>
+                        </td>
+                        <td class="st-num-cell" data-label="@labels.InvoiceColumnLabel">
+                            @if (carryPlus > 0.005m)
+                            {
+                                <span class="st-num st-plus num-ltr">+@StatementBuilder.FormatMoney(carryPlus)</span>
+                            }
+                            else
+                            {
+                                <span class="st-dash">—</span>
+                            }
+                        </td>
+                        <td class="st-num-cell" data-label="@labels.PaidColumnLabel">
+                            @if (carryPlus < -0.005m)
+                            {
+                                <span class="st-num st-minus num-ltr">−@StatementBuilder.FormatMoney(-carryPlus)</span>
+                            }
+                            else
+                            {
+                                <span class="st-dash">—</span>
+                            }
+                        </td>
+                        <td class="st-num-cell" data-label="@labels.RemainingColumnLabel">
+                            <span class="st-num st-bal num-ltr">@StatementBuilder.FormatMoney(Math.Abs(Model.BeginningBalance))</span>
+                            @if (Model.BeginningBalance < -0.005m)
+                            {
+                                <span class="st-bal-tag">دائن</span>
+                            }
+                        </td>
+                    </tr>
+                </tbody>
+            }
+
+            @if (!Model.Lines.Any())
+            {
+                <tbody class="st-empty-body">
+                    <tr class="st-empty-row">
+                        <td colspan="5">
+                            <div class="st-empty">
+                                <i class="bi bi-inbox"></i>
+                                <b>مفيش حركات في الفترة دي</b>
+                                <span>جرّب توسيع نطاق التاريخ أو اعرض كل الحركات.</span>
+                                <a asp-controller="@Model.ControllerName" asp-action="Statement"
+                                   asp-route-id="@Model.PartyId" asp-route-mode="@Model.Mode"
+                                   class="st-link-btn">كل الحركات</a>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            }
+
+            @foreach (var group in dayGroups)
+            {
+                <tbody class="st-day-head" data-day="@group.Key">
+                    <tr class="st-date">
+                        <td colspan="5"><span class="num-ltr">@StatementBuilder.FormatDate(group.Date)</span></td>
+                    </tr>
+                </tbody>
+
+                foreach (var line in group.Lines)
+                {
+                    txCounter++;
+                    var kind = StatementBuilder.ResolveLineKind(line, isVendor);
+                    var shortTitle = StatementBuilder.ResolveShortTitle(line, Model.AccountType);
+                    var plusVal = isVendor ? line.Credit : line.Debit;
+                    var minusVal = isVendor ? line.Debit : line.Credit;
+
+                    var kindKey = kind switch
+                    {
+                        StatementLineKind.OpeningBalance => "opening",
+                        StatementLineKind.Invoice or StatementLineKind.MaritimeSupplyOrder => "invoice",
+                        StatementLineKind.VendorPayment or StatementLineKind.CustomerReceipt => "payment",
+                        StatementLineKind.CreditNoteReturn => "return",
+                        _ => "refund"
+                    };
+
+                    StatementInvoiceDetailDto? matchedInvoice = null;
+                    MaritimeSupplyOrderDto? matchedOrder = null;
+                    if (line.DocumentId.HasValue)
+                    {
+                        if (kind == StatementLineKind.Invoice)
+                            invoicesById.TryGetValue(line.DocumentId.Value, out matchedInvoice);
+                        else if (kind == StatementLineKind.MaritimeSupplyOrder)
+                            ordersById.TryGetValue(line.DocumentId.Value, out matchedOrder);
+                    }
+
+                    var detailLines = kind == StatementLineKind.OpeningBalance
+                        ? new List<StatementDetailLine>()
+                        : StatementPresentationBuilder.BuildDetailLines(line, labels, matchedInvoice, matchedOrder);
+
+                    var searchText = StatementPresentationBuilder.BuildSearchText(line, matchedInvoice, matchedOrder);
+
+                    var settlement = line.DocumentId.HasValue
+                        && kindKey == "invoice"
+                        && Model.InvoiceSettlements.TryGetValue(line.DocumentId.Value, out var invoiceSettlement)
+                            ? invoiceSettlement
+                            : null;
+
+                    var statusKey = settlement?.PaymentStatus switch
+                    {
+                        DAL.Enums.InvoicePaymentStatus.Paid => "paid",
+                        DAL.Enums.InvoicePaymentStatus.PartiallyPaid => "partial",
+                        _ => "unpaid"
+                    };
+                    var statusText = statusKey switch
+                    {
+                        "paid" => "مسددة",
+                        "partial" => "مسددة جزئيًا",
+                        _ => "لسه متسددتش"
+                    };
+
+                    var rowId = $"tx-{txCounter}";
+                    var detailId = $"det-{txCounter}";
+                    var isLastPayment = lastPaymentLine != null
+                        && ((line.DocumentId.HasValue && lastPaymentLine.DocumentId == line.DocumentId && kindKey == "payment")
+                            || (ReferenceEquals(line, lastPaymentLine)));
+
+                    <tbody class="st-mv-group st-kind-@kindKey @(detailLines.Any() ? "has-detail" : "")"
+                           data-day="@group.Key"
+                           data-kind="@kindKey"
+                           data-search="@searchText">
+                        <tr class="st-main @(settlement != null ? "has-settlement" : "")"
+                            id="@(kindKey == "invoice" && line.DocumentId.HasValue ? $"inv-row-{line.DocumentId}" : rowId)"
+                            data-invoice-id="@line.DocumentId"
+                            data-last-payment="@(isLastPayment ? "true" : null)">
+                            <td class="st-cell-type" data-label="النوع">
+                                <div class="st-type-line">
+                                    @if (detailLines.Any())
+                                    {
+                                        <button type="button"
+                                                class="st-toggle"
+                                                aria-expanded="true"
+                                                aria-controls="@detailId"
+                                                title="إظهار / إخفاء التفاصيل">▾</button>
+                                    }
+                                    <span class="st-badge st-badge-@kindKey">@shortTitle</span>
+                                </div>
+                                @if (settlement != null)
+                                {
+                                    <span class="st-status st-status-@statusKey d-print-none" title="@statusText">
+                                        <span class="st-status-dot"></span>@statusText
+                                    </span>
+                                    <span class="st-progress d-print-none" role="progressbar"
+                                          aria-valuenow="@settlement.SettledPercent.ToString("0", CultureInfo.InvariantCulture)"
+                                          aria-valuemin="0" aria-valuemax="100"
+                                          aria-label="نسبة سداد الفاتورة">
+                                        <span style="width:@settlement.SettledPercent.ToString("0.##", CultureInfo.InvariantCulture)%"></span>
+                                    </span>
+                                }
+                            </td>
+
+                            <td class="st-cell-doc" data-label="الرقم">
+                                @if (!string.IsNullOrWhiteSpace(line.DocumentNo))
+                                {
+                                    <button type="button" class="st-doc" data-copy="@line.DocumentNo"
+                                            title="نسخ رقم المستند">@line.DocumentNo</button>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(line.SecondaryDocNo))
+                                {
+                                    <div class="st-doc-sub">داخلي: <span class="num-ltr">@line.SecondaryDocNo</span></div>
+                                }
+                            </td>
+
+                            <td class="st-num-cell" data-label="@labels.InvoiceColumnLabel">
+                                @if (plusVal > 0.005m)
+                                {
+                                    <span class="st-num st-plus num-ltr">+@StatementBuilder.FormatMoney(plusVal)</span>
+                                }
+                                else
+                                {
+                                    <span class="st-dash">—</span>
+                                }
+                            </td>
+
+                            <td class="st-num-cell" data-label="@labels.PaidColumnLabel">
+                                @if (minusVal > 0.005m)
+                                {
+                                    <span class="st-num st-minus num-ltr">−@StatementBuilder.FormatMoney(minusVal)</span>
+                                }
+                                else
+                                {
+                                    <span class="st-dash">—</span>
+                                }
+                            </td>
+
+                            <td class="st-num-cell" data-label="@labels.RemainingColumnLabel">
+                                <span class="st-num st-bal num-ltr">@StatementBuilder.FormatMoney(Math.Abs(line.RunningBalance))</span>
+                                @if (line.RunningBalance < -0.005m)
+                                {
+                                    <span class="st-bal-tag">دائن</span>
+                                }
+                            </td>
+                        </tr>
+
+                        @if (detailLines.Any())
+                        {
+                            var productItems = detailLines.Where(d => d.Product != null).Select(d => d.Product!).ToList();
+                            var firstProductIdx = detailLines.FindIndex(d => d.Product != null);
+                            var preDetails = firstProductIdx > 0
+                                ? detailLines.Take(firstProductIdx).Where(d => d.Product == null).ToList()
+                                : (firstProductIdx < 0 ? detailLines : new List<StatementDetailLine>());
+                            var postDetails = firstProductIdx >= 0
+                                ? detailLines.Skip(firstProductIdx).Where(d => d.Product == null).ToList()
+                                : new List<StatementDetailLine>();
+                            var weightHeader = Model.AccountType == StatementAccountType.MaritimeCompany ? "الوزن (كجم)" : "الوزن";
+
+                            <tr class="st-sub @(productItems.Any() ? "has-products" : "")" id="@detailId">
+                                <td colspan="5">
+                                    @foreach (var detail in preDetails)
+                                    {
+                                        <div class="st-it @(detail.IsNote ? "st-note" : "")">@detail.Text</div>
+                                    }
+
+                                    @if (productItems.Any())
+                                    {
+                                        <div class="st-items-card" role="list" aria-label="تفاصيل الأصناف">
+                                            <div class="st-items-head" aria-hidden="true">
+                                                <span class="st-ih-name">الصنف</span>
+                                                <span class="st-ih-qty">@weightHeader</span>
+                                                <span class="st-ih-price">السعر</span>
+                                                <span class="st-ih-total">الإجمالي</span>
+                                            </div>
+                                            @{
+                                                var itemNo = 0;
+                                            }
+                                            @foreach (var product in productItems)
+                                            {
+                                                itemNo++;
+                                                <div class="st-item-row" role="listitem">
+                                                    <div class="st-item-name" data-label="الصنف">
+                                                        <span class="st-item-idx num-ltr">@itemNo</span>
+                                                        <span class="st-item-title">@product.ProductName</span>
+                                                        @if (!string.IsNullOrEmpty(product.LineDiscountText))
+                                                        {
+                                                            <span class="st-item-disc">خصم <span class="num-ltr">@product.LineDiscountText</span></span>
+                                                        }
+                                                    </div>
+                                                    <div class="st-item-qty" data-label="@weightHeader">
+                                                        <span class="st-qty-pill num-ltr">@product.QuantityText</span>
+                                                    </div>
+                                                    <div class="st-item-price" data-label="السعر">
+                                                        <span class="num-ltr">@product.UnitPriceText</span>
+                                                    </div>
+                                                    <div class="st-item-total" data-label="الإجمالي">
+                                                        <span class="num-ltr">@product.LineTotalText</span>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    @foreach (var detail in postDetails)
+                                    {
+                                        <div class="st-it @(detail.IsNote ? "st-note" : "")">@detail.Text</div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                }
+            }
+
+            <tfoot>
+                <tr>
+                    <td colspan="2" class="st-total-lbl">@labels.PeriodTotalLabel</td>
+                    <td class="st-num-cell st-n">
+                        <span class="st-num num-ltr">+@StatementBuilder.FormatMoney(periodAdditions)</span>
+                    </td>
+                    <td class="st-num-cell st-n">
+                        <span class="st-num st-minus num-ltr">−@StatementBuilder.FormatMoney(Model.TotalDeductions)</span>
+                    </td>
+                    <td class="st-num-cell st-n">
+                        <span class="st-num st-bal num-ltr">@StatementBuilder.FormatMoney(Math.Abs(Model.EndingBalance))</span>
+                        @if (Model.EndingBalance < -0.005m)
+                        {
+                            <span class="st-bal-tag">دائن</span>
+                        }
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="st-empty-state d-print-none" id="stEmptyState" hidden>
+        <i class="bi bi-search"></i>
+        <b>مفيش نتائج مطابقة</b>
+        <span>جرّب كلمة بحث تانية أو غيّر نوع الحركة.</span>
+        <button type="button" class="st-link-btn" id="stClearFilters">مسح الفلاتر</button>
+    </div>
+</section>

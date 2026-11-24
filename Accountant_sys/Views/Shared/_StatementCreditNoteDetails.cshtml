@@ -1,0 +1,45 @@
+@model BLL.DTOs.CreditNote.OutGoingData.CreditNoteDto
+@using Accountant_sys.Models
+
+<div class="ledger-detail-panel is-return">
+    <div class="detail-meta-bar">
+        <span>
+            الفاتورة الأصلية:
+            <strong class="doc-ref num-ltr">@Model.OriginalInvoiceNumber</strong>
+        </span>
+        @if (!string.IsNullOrWhiteSpace(Model.Reason))
+        {
+            <span>السبب: <strong>@Model.Reason.Trim()</strong></span>
+        }
+    </div>
+
+    @if (Model.Items.Any())
+    {
+        <table class="detail-subtable">
+            <thead>
+                <tr>
+                    <th style="width: 34px;">#</th>
+                    <th class="text-start">الصنف المرتجع</th>
+                    <th style="width: 110px;">الكمية المرتجعة</th>
+                    <th style="width: 110px;">سعر الوحدة (ج.م)</th>
+                    <th style="width: 120px;">إجمالي المرتجع (ج.م)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    var idx = 1;
+                    foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td class="text-center text-muted num-ltr">@(idx++)</td>
+                            <td class="text-start fw-semibold text-dark">@item.ProductName</td>
+                            <td class="text-center num-ltr">@StatementBuilder.FormatQuantity(item.Quantity)</td>
+                            <td class="text-center num-ltr">@StatementBuilder.FormatMoney(item.UnitPrice)</td>
+                            <td class="text-center num-ltr fw-bold text-success">@StatementBuilder.FormatMoney(item.LineTotal)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+</div>

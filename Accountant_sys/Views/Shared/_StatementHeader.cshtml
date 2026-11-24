@@ -1,0 +1,111 @@
+@model Accountant_sys.Models.StatementViewModel
+@using Accountant_sys.Models
+@{
+    var labels = Model.Labels;
+    var pageHeaderContent = StatementCss.BuildPageHeaderContent(
+        labels.StatementTitle, Model.PartyName, Model.AccountCode);
+    var periodText = Model.From.HasValue && Model.To.HasValue
+        ? $"من {StatementBuilder.FormatDate(Model.From.Value)} إلى {StatementBuilder.FormatDate(Model.To.Value)}"
+        : (Model.From.HasValue
+            ? $"من {StatementBuilder.FormatDate(Model.From.Value)}"
+            : (Model.To.HasValue ? $"حتى {StatementBuilder.FormatDate(Model.To.Value)}" : "كل الفترة"));
+    var partyMeta = string.Join(" · ", new[]
+    {
+        $"كود {Model.AccountCode}",
+        Model.PartyAddress,
+        Model.PartyPhoneNumber
+    }.Where(x => !string.IsNullOrWhiteSpace(x)));
+}
+
+<style>
+    @@page {
+        size: A4 portrait;
+        margin: 15mm 10mm 16mm 10mm;
+
+        @@top-right {
+            content: "@Html.Raw(pageHeaderContent)";
+            font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, sans-serif;
+            font-size: 7.5pt;
+            font-weight: 700;
+            color: #1e3a5f;
+            border-bottom: 0.5pt solid #cbd5e1;
+            padding-bottom: 3pt;
+            vertical-align: bottom;
+        }
+
+        @@top-left {
+            content: "المصري للتجارة والتوريدات";
+            font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, sans-serif;
+            font-size: 7.5pt;
+            color: #475569;
+            border-bottom: 0.5pt solid #cbd5e1;
+            padding-bottom: 3pt;
+            vertical-align: bottom;
+        }
+
+        @@bottom-center {
+            content: "صفحة " counter(page) " من " counter(pages);
+            font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, sans-serif;
+            font-size: 8pt;
+            color: #6B7280;
+            padding-top: 3pt;
+        }
+
+        @@bottom-right {
+            content: "العملة: الجنيه المصري (ج.م) | كشف حساب معتمد";
+            font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, sans-serif;
+            font-size: 7.2pt;
+            color: #64748b;
+            border-top: 0.5pt solid #cbd5e1;
+            padding-top: 3pt;
+            vertical-align: top;
+        }
+    }
+
+    @@page :first {
+        margin-top: 10mm;
+
+        @@top-right {
+            content: none;
+            border-bottom: none;
+        }
+
+        @@top-left {
+            content: none;
+            border-bottom: none;
+        }
+    }
+</style>
+
+<header class="st-header">
+    <div class="st-header-top">
+        <div class="st-doc-title-block">
+            <h1 class="st-doc-title">@labels.StatementTitle</h1>
+            <div class="st-meta">
+                <span>من</span>
+                <b class="num-ltr">@(Model.From.HasValue ? StatementBuilder.FormatDate(Model.From.Value) : "—")</b>
+                <span>إلى</span>
+                <b class="num-ltr">@(Model.To.HasValue ? StatementBuilder.FormatDate(Model.To.Value) : "—")</b>
+                <span>تاريخ الطباعة</span>
+                <b class="num-ltr">@StatementBuilder.FormatDate(DateTime.Today)</b>
+            </div>
+            @if (!Model.From.HasValue && !Model.To.HasValue)
+            {
+                <div class="st-period-note">@periodText</div>
+            }
+        </div>
+
+        <div class="st-brand-block">
+            <div>
+                <b>المصري للتجارة والتوريدات</b>
+                <small>ELMASRY TRADING &amp; SUPPLIES</small>
+            </div>
+            <div class="st-logo" aria-hidden="true">م</div>
+        </div>
+    </div>
+
+    <div class="st-party">
+        <h2>@Model.PartyName</h2>
+        <span>@partyMeta</span>
+    </div>
+</header>

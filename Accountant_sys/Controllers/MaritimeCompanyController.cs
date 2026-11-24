@@ -1,11 +1,7 @@
 using Accountant_sys.Models;
-using BLL.DTOs.Cash.OutGoingData;
-using BLL.DTOs.CreditNote.OutGoingData;
-using BLL.DTOs.Customer.OutGoingData;
 using BLL.DTOs.Invoice.OutGoingData;
 using BLL.DTOs.MaritimeCompany.InComingData;
 using BLL.DTOs.MaritimeCompany.OutGoingData;
-using BLL.DTOs.OpeningBalance.OutGoingData;
 using BLL.IService;
 using DAL.Enums;
 using Microsoft.AspNetCore.Mvc;
@@ -85,9 +81,12 @@ namespace Accountant_sys.Controllers
             var activeCompanies = await _maritimeCompanyService.GetActiveCompaniesAsync() ?? new List<MaritimeCompanyDto>();
             ViewBag.Parties = new SelectList(activeCompanies, "Id", "Name");
 
-            ViewBag.Mode = string.Equals(mode, "detailed", StringComparison.OrdinalIgnoreCase)
-                ? "detailed"
-                : "summary";
+            // Detailed is the reference default; "summary" stays available
+            // through the on-screen toggle and the URL.
+            var viewMode = string.Equals(mode, "summary", StringComparison.OrdinalIgnoreCase)
+                ? "summary"
+                : "detailed";
+            ViewBag.Mode = viewMode;
 
             if (id == null || id <= 0)
                 return View();
@@ -98,134 +97,13 @@ namespace Accountant_sys.Controllers
 
             ViewBag.SelectedCompanyId = company.Id;
 
-            var fromDate = from ?? StatementBuilder.HistoryStart;
-            var toDate = to ?? StatementBuilder.HistoryEnd;
+            var model = await StatementPageDataLoader.LoadAsync(
+                StatementAccountType.MaritimeCompany, company.Id, company.Name, "MaritimeCompany", from, to, viewMode,
+                company.PhoneNumber, company.Address,
+                _openingBalanceService, _invoiceService, _creditNoteService, _cashTransactionService);
 
-            var ledger = await BuildMaritimeLedgerAsync(id.Value, fromDate, toDate);
-            var model = StatementBuilder.Build(ledger, isVendor: false, company.Id, company.Name, "MaritimeCompany", from, to);
-            model.Mode = (string)ViewBag.Mode;
-
-            // The detailed supply-orders mode needs the full order bodies
-            // (external number + every item + per-order total) — same posted
-            // invoices the summary ledger is built from.
-            if (ViewBag.Mode == "detailed")
-            {
-                ViewBag.SupplyOrders = await _invoiceService.GetMaritimeSupplyOrdersAsync(company.Id, from, to)
-                    ?? new List<BLL.DTOs.MaritimeCompany.OutGoingData.MaritimeSupplyOrderDto>();
-            }
-
+            ViewBag.SupplyOrders = model.SupplyOrders;
             return View(model);
-        }
-
-        private async Task<List<StatementLine>> BuildMaritimeLedgerAsync(int companyId, DateTime from, DateTime to)
-        {
-            var lines = new List<StatementLine>();
-            var historyStart = StatementBuilder.HistoryStart;
-
-            var openings = await _openingBalanceService.GetAllOpeningBalancesAsync() ?? new List<OpeningBalanceDto>();
-            var opening = openings.FirstOrDefault(o => o.CustomerId == companyId && o.VendorId == null);
-            if (opening != null)
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = opening.EffectiveDate,
-                    Timestamp = opening.CreatedAt,
-                    SortGroup = 0,
-                    Kind = StatementLineKind.OpeningBalance,
-                    DocumentId = opening.Id,
-                    DocumentNo = "OP" + opening.Id.ToString("D4"),
-                    DocumentType = "رصيد افتتاحي",
-                    Description = StatementBuilder.FormatOpeningDescription(opening),
-                    Notes = opening.Notes,
-                    Debit = opening.Amount
-                });
-            }
-
-            var supplies = await _invoiceService.GetInvoicesAsync(InvoiceType.MaritimeSupply, InvoiceStatus.Posted)
-                ?? new List<InvoiceDto>();
-            var companySupplies = supplies.Where(i => i.CustomerId == companyId).ToList();
-            foreach (var supply in companySupplies)
-            {
-                var externalNo = string.IsNullOrWhiteSpace(supply.ExternalOrderNumber)
-                    ? supply.InvoiceNumber
-                    : supply.ExternalOrderNumber;
-                lines.Add(new StatementLine
-                {
-                    Date = supply.TransactionDate,
-                    Timestamp = supply.CreatedAt,
-                    Kind = StatementLineKind.MaritimeSupplyOrder,
-                    DocumentId = supply.Id,
-                    DocumentNo = externalNo,
-                    SecondaryDocNo = string.IsNullOrWhiteSpace(supply.ExternalOrderNumber) ? null : supply.InvoiceNumber,
-                    DocumentType = "أمر توريد بحري (مبيعات)",
-                    Description = StatementBuilder.FormatInvoiceDescription(supply, isVendor: false, isMaritime: true),
-                    Notes = supply.Notes,
-                    Debit = supply.TotalAmount
-                });
-            }
-
-            var returns = await _creditNoteService.GetCreditNotesAsync(
-                CreditNoteType.CustomerReturn, CreditNoteStatus.Posted, historyStart, to)
-                ?? new List<CreditNoteDto>();
-            var supplyIds = companySupplies.Select(i => i.Id).ToHashSet();
-            foreach (var note in returns.Where(n => supplyIds.Contains(n.OriginalInvoiceId)))
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = note.TransactionDate,
-                    Timestamp = note.CreatedAt,
-                    Kind = StatementLineKind.CreditNoteReturn,
-                    DocumentId = note.Id,
-                    DocumentNo = note.CreditNoteNumber,
-                    DocumentType = "إشعار مرتجع (مسترد)",
-                    Description = StatementBuilder.FormatCreditNoteDescription(note),
-                    Notes = note.Reason,
-                    CreditNote = note,
-                    Credit = note.TotalAmount
-                });
-            }
-
-            var payments = await _cashTransactionService.GetTransactionsAsync(
-                historyStart, to, CashCategory.CustomerPayment, CashDirection.In)
-                ?? new List<CashTransactionDto>();
-            foreach (var payment in payments.Where(p => p.CustomerId == companyId))
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = payment.TransactionDate,
-                    Timestamp = payment.CreatedAt,
-                    Kind = StatementLineKind.CustomerReceipt,
-                    DocumentId = payment.Id,
-                    DocumentNo = "REC" + payment.Id.ToString("D6"),
-                    DocumentType = "سند دفعة مستلمة (بحري)",
-                    Description = StatementBuilder.FormatPaymentDescription(payment, isVendor: false),
-                    Notes = payment.Notes,
-                    CashTransaction = payment,
-                    Credit = payment.Amount
-                });
-            }
-
-            var refunds = await _cashTransactionService.GetTransactionsAsync(
-                historyStart, to, CashCategory.CustomerRefund, CashDirection.Out)
-                ?? new List<CashTransactionDto>();
-            foreach (var refund in refunds.Where(p => p.CustomerId == companyId))
-            {
-                lines.Add(new StatementLine
-                {
-                    Date = refund.TransactionDate,
-                    Timestamp = refund.CreatedAt,
-                    Kind = StatementLineKind.CustomerRefund,
-                    DocumentId = refund.Id,
-                    DocumentNo = "RFD" + refund.Id.ToString("D6"),
-                    DocumentType = "سند مرتجع نقدي (مردود للشركة)",
-                    Description = string.IsNullOrWhiteSpace(refund.Notes) ? "رد نقدي للشركة البحرية" : refund.Notes.Trim(),
-                    Notes = refund.Notes,
-                    CashTransaction = refund,
-                    Debit = refund.Amount
-                });
-            }
-
-            return lines;
         }
 
         // ==========================================

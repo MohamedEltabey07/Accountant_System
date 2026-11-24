@@ -14,10 +14,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!table) return;
 
-        const tbody = table.querySelector('tbody');
+        const tbody = table.querySelector(':scope > tbody') || table.querySelector('tbody');
         if (!tbody) return;
 
-        const allRows = Array.from(tbody.querySelectorAll('tr:not(.no-filter-row)'));
+        const allRows = Array.from(tbody.querySelectorAll(':scope > tr:not(.no-filter-row):not(.ledger-detail-row)'));
         const totalCount = allRows.length;
 
         // Extract unit name from data-counter-unit attribute or existing counter text
@@ -49,12 +49,18 @@ document.addEventListener('DOMContentLoaded', function () {
             let visibleCount = 0;
 
             allRows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                if (text.includes(query)) {
+                const txId = row.getAttribute('data-tx-id');
+                const detailRow = txId ? tbody.querySelector(':scope > tr.ledger-detail-row[data-detail-for="' + txId + '"]') : null;
+                const combinedText = (row.textContent + (detailRow ? ' ' + detailRow.textContent : '')).toLowerCase();
+                const matched = query === '' || combinedText.includes(query);
+
+                if (matched) {
                     row.style.display = '';
+                    if (detailRow) detailRow.style.display = '';
                     visibleCount++;
                 } else {
                     row.style.display = 'none';
+                    if (detailRow) detailRow.style.display = 'none';
                 }
             });
 
@@ -66,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!emptyMsgRow) {
                     emptyMsgRow = document.createElement('tr');
                     emptyMsgRow.className = 'search-empty-row';
-                    const colCount = table.querySelectorAll('thead th').length || 6;
+                    const colCount = table.querySelectorAll(':scope > thead th').length || 6;
                     emptyMsgRow.innerHTML = `
                         <td colspan="${colCount}" class="text-center py-4 text-muted bg-light">
                             <i class="bi bi-search fs-2 d-block mb-2 text-secondary"></i>
@@ -153,10 +159,13 @@ function exportTableToCSV(tableId, filename) {
     const rows = table.querySelectorAll('tr');
 
     for (let i = 0; i < rows.length; i++) {
-        // Skip hidden or non-printable rows
-        if (rows[i].classList.contains('d-print-none') || rows[i].style.display === 'none') continue;
+        // Skip hidden, non-printable, or detail sub-table rows
+        if (rows[i].classList.contains('d-print-none')
+            || rows[i].classList.contains('no-export')
+            || rows[i].closest('.no-export') !== null
+            || rows[i].style.display === 'none') continue;
 
-        let row = [], cols = rows[i].querySelectorAll('td, th');
+        let row = [], cols = rows[i].querySelectorAll(':scope > td, :scope > th');
         for (let j = 0; j < cols.length; j++) {
             // Skip action columns if marked
             if (cols[j].classList.contains('d-print-none') || cols[j].classList.contains('no-export')) continue;

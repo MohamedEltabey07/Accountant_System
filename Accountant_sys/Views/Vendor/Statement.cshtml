@@ -1,8 +1,7 @@
 @model Accountant_sys.Models.StatementViewModel
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
-    ViewData["Title"] = "كشف حساب مورد";
-    var selectedMode = Model?.Mode ?? "summary";
+    ViewData["Title"] = "كشف حساب";
 }
 
 @if (Model == null)
@@ -11,17 +10,17 @@
         <div class="col-lg-7">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-white py-3 border-bottom d-flex align-items-center gap-2">
-                    <div class="p-2 bg-danger-subtle text-danger rounded-3">
+                    <div class="p-2 bg-primary-subtle text-primary rounded-3">
                         <i class="bi bi-file-earmark-ruled fs-4"></i>
                     </div>
                     <div>
-                        <h5 class="card-title mb-0 fw-bold text-dark">كشف حساب مورد تفصيلي</h5>
-                        <small class="text-muted">استخراج كشف حساب مالي معتمد مع الأرصدة التراكمية</small>
+                        <h5 class="card-title mb-0 fw-bold text-dark">كشف حساب مورد</h5>
+                        <small class="text-muted">استخراج كشف حساب مالي معتمد مع الرصيد التراكمي</small>
                     </div>
                 </div>
                 <div class="card-body p-4">
                     <p class="text-muted mb-4">
-                        حدد المورد واختياريًا نطاق التاريخ المطلوب لإنشاء كشف حساب رسمي يشمل الأرصدة الافتتاحية، فواتير المشتريات، المدفوعات النقدية، ومرتجعات البضاعة.
+                        حدد المورد ونطاق التاريخ المطلوب (اختياري) لاستخراج كشف حساب يشمل الرصيد السابق، فواتير المشتريات، المدفوعات، والمرتجعات.
                     </p>
 
                     <form method="get" asp-controller="Vendor" asp-action="Statement" class="row g-3">
@@ -40,24 +39,24 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">من تاريخ (اختياري)</label>
-                            <input type="date" value="2000-01-01" name="from" class="form-control" />
+                            <input type="date" name="from" class="form-control" />
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">إلى تاريخ (اختياري)</label>
-                            <input type="date" value="2100-01-01" name="to" class="form-control" />
+                            <input type="date" name="to" class="form-control" />
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">شكل الكشف</label>
                             <select name="mode" class="form-select">
-                                <option value="summary">كشف موجز (كل فاتورة بسطر)</option>
-                                <option value="detailed">كشف تفصيلي لفواتير المشتريات (الأصناف والأسعار لكل فاتورة)</option>
+                                <option value="summary">ملخص الحساب</option>
+                                <option value="detailed">كشف حساب تفصيلي</option>
                             </select>
                         </div>
                         <div class="col-12 pt-3 border-top d-flex gap-2 justify-content-end">
                             <a asp-controller="Vendor" asp-action="Index" class="btn btn-outline-secondary">
                                 إلغاء
                             </a>
-                            <button type="submit" class="btn btn-danger px-4 fw-bold shadow-sm">
+                            <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
                                 <i class="bi bi-search me-1"></i> استخراج كشف الحساب
                             </button>
                         </div>
@@ -69,30 +68,5 @@
 }
 else
 {
-    <!-- Mode Switch: Summary vs Detailed Invoices (Screen Only) -->
-    <div class="d-flex justify-content-center mb-3 d-print-none">
-        <div class="btn-group shadow-sm" role="group" aria-label="شكل كشف الحساب">
-            <a asp-controller="Vendor" asp-action="Statement"
-               asp-route-id="@Model.PartyId" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")"
-               asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-mode="summary"
-               class="btn btn-sm @(selectedMode == "summary" ? "btn-primary fw-bold" : "btn-outline-primary")">
-                <i class="bi bi-list-columns-reverse me-1"></i> كشف موجز
-            </a>
-            <a asp-controller="Vendor" asp-action="Statement"
-               asp-route-id="@Model.PartyId" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")"
-               asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-mode="detailed"
-               class="btn btn-sm @(selectedMode == "detailed" ? "btn-primary fw-bold" : "btn-outline-primary")">
-                <i class="bi bi-card-text me-1"></i> تفصيلية الفواتير
-            </a>
-        </div>
-    </div>
-
-    @if (selectedMode == "detailed")
-    {
-        <partial name="_PartyDetailedStatement" model="Model" />
-    }
-    else
-    {
-        <partial name="_StatementTable" model="Model" />
-    }
+    <partial name="_StatementTable" model="Model" />
 }

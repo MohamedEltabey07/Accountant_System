@@ -67,6 +67,7 @@ namespace BLL.Service
                             ? it.ProductName
                             : (it.Product?.Name ?? string.Empty),
                         Quantity = it.Quantity,
+                        UnitLabel = it.Product?.Category == ProductCategory.FrozenFish ? "كجم" : string.Empty,
                         UnitPrice = it.UnitPrice,
                         LineDiscountAmount = it.LineDiscountAmount,
                         LineTotal = it.LineTotal
@@ -1076,6 +1077,53 @@ namespace BLL.Service
             }
 
             return dtos;
+        }
+
+        public async Task<List<StatementInvoiceSettlementDto>> GetStatementInvoiceSettlementsAsync(
+            InvoiceType type,
+            int? customerId,
+            int? vendorId,
+            DateTime? from,
+            DateTime? to,
+            DateTime? asOf)
+        {
+            var invoices = await _unitOfWork.InvoiceRepo.GetPostedInvoicesForStatementAsync(
+                type, customerId, vendorId, from, to);
+
+            var asOfDate = asOf?.Date;
+            var result = new List<StatementInvoiceSettlementDto>(invoices.Count);
+
+            foreach (var invoice in invoices)
+            {
+                // PaymentAllocation itself has no economic date; the cash
+                // transaction date is the date the money actually moved.
+                var paidAmount = invoice.PaymentAllocations
+                    .Where(pa => asOfDate == null
+                                 || pa.CashTransaction == null
+                                 || pa.CashTransaction.TransactionDate.Date <= asOfDate)
+                    .Sum(pa => pa.Amount);
+
+                var returnsAmount = invoice.CreditNotes
+                    .Where(cn => cn.Status == CreditNoteStatus.Posted
+                                 && (asOfDate == null || cn.TransactionDate.Date <= asOfDate))
+                    .Sum(cn => cn.TotalAmount);
+
+                var remaining = invoice.TotalAmount - paidAmount - returnsAmount;
+
+                result.Add(new StatementInvoiceSettlementDto
+                {
+                    InvoiceId = invoice.Id,
+                    InvoiceNumber = invoice.InvoiceNumber,
+                    TransactionDate = invoice.TransactionDate,
+                    TotalAmount = invoice.TotalAmount,
+                    PaidAmount = paidAmount,
+                    ReturnsAmount = returnsAmount,
+                    RemainingAmount = remaining,
+                    PaymentStatus = DerivePaymentStatus(invoice.TotalAmount, remaining)
+                });
+            }
+
+            return result;
         }
 
         // Posted maritime supply orders (with their items) for the maritime

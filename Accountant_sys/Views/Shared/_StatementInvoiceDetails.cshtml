@@ -1,0 +1,82 @@
+@model BLL.DTOs.Invoice.OutGoingData.StatementInvoiceDetailDto
+@using Accountant_sys.Models
+@{
+    var hasItemDiscount = Model.Items.Any(i => i.LineDiscountAmount > 0);
+    var hasInvoiceDiscount = Model.InvoiceDiscountAmount > 0;
+    var hasNotes = !string.IsNullOrWhiteSpace(Model.Notes);
+}
+
+<div class="ledger-detail-panel">
+    @if (hasInvoiceDiscount)
+    {
+        <div class="detail-meta-bar">
+            <span>
+                الإجمالي قبل الخصم: <strong class="num-ltr">@StatementBuilder.FormatMoney(Model.SubTotal) ج.م</strong>
+                @if (Model.ItemDiscountTotal > 0)
+                {
+                    <span class="ms-2">خصم الأصناف: <strong class="num-ltr text-danger">-@StatementBuilder.FormatMoney(Model.ItemDiscountTotal) ج.م</strong></span>
+                }
+                <span class="ms-2">خصم الفاتورة: <strong class="num-ltr text-danger">-@StatementBuilder.FormatMoney(Model.InvoiceDiscountAmount) ج.م</strong></span>
+            </span>
+            <span>صافي الفاتورة: <strong class="num-ltr">@StatementBuilder.FormatMoney(Model.TotalAmount) ج.م</strong></span>
+        </div>
+    }
+
+    @if (!Model.Items.Any())
+    {
+        <div class="text-muted small py-1">لا توجد بنود مسجلة على هذه الفاتورة.</div>
+    }
+    else
+    {
+        <table class="detail-subtable">
+            <thead>
+                <tr>
+                    <th style="width: 34px;">#</th>
+                    <th class="text-start">الصنف</th>
+                    <th style="width: 110px;">الكمية</th>
+                    <th style="width: 105px;">سعر الوحدة (ج.م)</th>
+                    @if (hasItemDiscount)
+                    {
+                        <th style="width: 95px;">الخصم (ج.م)</th>
+                    }
+                    <th style="width: 115px;">الإجمالي (ج.م)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    var idx = 1;
+                    foreach (var item in Model.Items)
+                    {
+                        var qtyText = StatementBuilder.FormatQuantity(item.Quantity);
+                        <tr>
+                            <td class="text-center text-muted num-ltr">@(idx++)</td>
+                            <td class="text-start fw-semibold text-dark">@item.ProductName</td>
+                            <td class="text-center">
+                                <span class="num-ltr">@qtyText</span>
+                                @if (!string.IsNullOrWhiteSpace(item.UnitLabel))
+                                {
+                                    <span class="text-muted small ms-1">@item.UnitLabel</span>
+                                }
+                            </td>
+                            <td class="text-center num-ltr">@StatementBuilder.FormatMoney(item.UnitPrice)</td>
+                            @if (hasItemDiscount)
+                            {
+                                <td class="text-center num-ltr @(item.LineDiscountAmount > 0 ? "text-danger" : "text-muted")">
+                                    @(item.LineDiscountAmount > 0 ? "-" + StatementBuilder.FormatMoney(item.LineDiscountAmount) : "-")
+                                </td>
+                            }
+                            <td class="text-center num-ltr fw-bold">@StatementBuilder.FormatMoney(item.LineTotal)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (hasNotes)
+    {
+        <div class="detail-note-box">
+            <strong>ملاحظات الفاتورة:</strong> @Model.Notes!.Trim()
+        </div>
+    }
+</div>

@@ -1,0 +1,59 @@
+@model Accountant_sys.Models.StatementLine
+@using Accountant_sys.Models
+@{
+    var tx = Model.CashTransaction!;
+    var hasAllocations = tx.Allocations != null && tx.Allocations.Any();
+    var allocatedSum = hasAllocations ? tx.Allocations!.Sum(a => a.Amount) : 0m;
+    var unallocated = tx.Amount - allocatedSum;
+    var hasNotes = !string.IsNullOrWhiteSpace(tx.Notes);
+}
+
+<div class="ledger-detail-panel is-payment">
+    @if (hasAllocations)
+    {
+        <table class="detail-subtable">
+            <thead>
+                <tr>
+                    <th style="width: 140px;">رقم الفاتورة</th>
+                    <th class="text-start">تفاصيل توزيع الدفعة</th>
+                    <th style="width: 140px;">المبلغ المخصوم (ج.م)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var alloc in tx.Allocations!)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <span class="doc-ref num-ltr">
+                                @(string.IsNullOrWhiteSpace(alloc.InvoiceNumber) ? $"#{alloc.InvoiceId}" : alloc.InvoiceNumber)
+                            </span>
+                        </td>
+                        <td class="text-start">سداد من مستحقات الفاتورة</td>
+                        <td class="text-center num-ltr fw-bold text-success">@StatementBuilder.FormatMoney(alloc.Amount)</td>
+                    </tr>
+                }
+                @if (unallocated >= 0.01m)
+                {
+                    <tr>
+                        <td class="text-center text-muted">-</td>
+                        <td class="text-start">سداد الرصيد الافتتاحي / دفعة على الحساب</td>
+                        <td class="text-center num-ltr fw-bold text-success">@StatementBuilder.FormatMoney(unallocated)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2" class="text-start">إجمالي توزيع الدفعة</td>
+                    <td class="text-center num-ltr text-success">@StatementBuilder.FormatMoney(tx.Amount) ج.م</td>
+                </tr>
+            </tfoot>
+        </table>
+    }
+
+    @if (hasNotes)
+    {
+        <div class="detail-note-box">
+            <strong>ملاحظات السند:</strong> @tx.Notes!.Trim()
+        </div>
+    }
+</div>

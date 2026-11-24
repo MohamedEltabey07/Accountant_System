@@ -8,11 +8,11 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
     <h4 class="mb-0"><i class="bi bi-truck me-2 text-primary"></i> تفاصيل المورد: <span class="text-primary">@Model.Name</span></h4>
     <div class="d-flex flex-wrap gap-2">
-        <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="detailed" class="btn btn-primary btn-sm fw-bold">
-            <i class="bi bi-card-text me-1"></i> كشف الحساب التفصيلي
+        <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="summary" class="btn btn-primary btn-sm fw-bold">
+            <i class="bi bi-list-columns-reverse me-1"></i> ملخص الحساب
         </a>
-        <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="summary" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-list-columns-reverse me-1"></i> كشف الحساب الموجز
+        <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="detailed" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-card-text me-1"></i> كشف حساب تفصيلي
         </a>
         <a asp-controller="Payment" asp-action="VendorPayment" asp-route-vendorId="@Model.Id" class="btn btn-danger btn-sm fw-bold">
             <i class="bi bi-wallet2 me-1"></i> تسجيل دفعة (سند صرف)
@@ -33,30 +33,30 @@
         <div class="col-md-4">
             <div class="card shadow-sm border-0 border-start border-danger border-4 h-100">
                 <div class="card-body py-3">
-                    <small class="text-muted d-block">إجمالي المستحق للمورد (مشتريات + افتتاحي)</small>
+                    <small class="text-muted d-block">إجمالي المشتريات والرصيد الافتتاحي</small>
                     <h4 class="fw-bold text-danger font-tabular mb-1">+@summary.TotalAdditions.ToString("N2") <small class="fs-6 text-muted">ج.م</small></h4>
-                    <small class="text-muted">فواتير مشتريات: @summary.TotalInvoices.ToString("N2") | افتتاحي: @summary.TotalOpening.ToString("N2")</small>
+                    <small class="text-muted">المشتريات: @summary.TotalInvoices.ToString("N2") | افتتاحي: @summary.TotalOpening.ToString("N2")</small>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card shadow-sm border-0 border-start border-success border-4 h-100">
                 <div class="card-body py-3">
-                    <small class="text-muted d-block">إجمالي ما دفعناه للمورد + المرتجعات</small>
+                    <small class="text-muted d-block">المدفوعات والمرتجعات</small>
                     <h4 class="fw-bold text-success font-tabular mb-1">-@summary.TotalDeductions.ToString("N2") <small class="fs-6 text-muted">ج.م</small></h4>
-                    <small class="text-muted">مدفوعات نقدية: @summary.TotalPayments.ToString("N2") | مرتجعات: @summary.TotalReturns.ToString("N2")</small>
+                    <small class="text-muted">المدفوعات للمورد: @summary.TotalPayments.ToString("N2") | مرتجعات: @summary.TotalReturns.ToString("N2")</small>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card shadow-sm border-0 border-start border-dark border-4 h-100">
                 <div class="card-body py-3">
-                    <small class="text-muted d-block">الرصيد المتبقي الحالي</small>
+                    <small class="text-muted d-block">@(Model.CurrentBalance < 0 ? "رصيد لنا لدى المورد" : "المبلغ المستحق للمورد")</small>
                     <h4 class="fw-bold font-tabular mb-1 @(Model.CurrentBalance > 0 ? "text-danger" : (Model.CurrentBalance < 0 ? "text-info" : "text-success"))">
                         @Math.Abs(Model.CurrentBalance).ToString("N2") <small class="fs-6 text-muted">ج.م</small>
                     </h4>
                     <small class="fw-bold @(Model.CurrentBalance > 0 ? "text-danger" : (Model.CurrentBalance < 0 ? "text-info" : "text-success"))">
-                        @(Model.CurrentBalance > 0 ? "مستحق للمورد (علينا دفعه)" : (Model.CurrentBalance < 0 ? "رصيد لنا عند المورد (مدفوع مقدماً)" : "الحساب خالص ومسدد"))
+                        @(Model.CurrentBalance > 0 ? "مستحق للمورد (علينا دفعه)" : (Model.CurrentBalance < 0 ? "رصيد لنا لدى المورد (مدفوع مقدماً)" : "الحساب خالص ومسدد"))
                     </small>
                 </div>
             </div>
@@ -76,7 +76,7 @@
             <div class="card-body">
                 <dl class="row mb-0 gy-3">
                     <dt class="col-sm-4 text-muted">كود المورد</dt>
-                    <dd class="col-sm-8 fw-semibold">#VND-@Model.Id.ToString("D4")</dd>
+                    <dd class="col-sm-8 fw-semibold" dir="ltr">#VEN-@Model.Id.ToString("D4")</dd>
 
                     <dt class="col-sm-4 text-muted">اسم المورد</dt>
                     <dd class="col-sm-8 fw-bold fs-5">@Model.Name</dd>
@@ -85,7 +85,7 @@
                     <dd class="col-sm-8">
                         @if (!string.IsNullOrEmpty(Model.PhoneNumber))
                         {
-                            <a href="tel:@Model.PhoneNumber" class="text-decoration-none">
+                            <a href="tel:@Model.PhoneNumber" class="text-decoration-none" dir="ltr">
                                 <i class="bi bi-telephone me-1"></i> @Model.PhoneNumber
                             </a>
                         }
@@ -141,7 +141,7 @@
                         }
                     </div>
                     <h5 class="fw-bold mb-1">صافي رصيد المورد</h5>
-                    <small class="text-muted d-block mb-3">فواتير المشتريات + الافتتاحي - ما دفعناه والمرتجعات</small>
+                    <small class="text-muted d-block mb-3">فواتير المشتريات + الافتتاحي - المدفوعات والمرتجعات</small>
 
                     <div class="display-6 fw-bold mb-2">
                         @Math.Abs(Model.CurrentBalance).ToString("N2") <small class="fs-6">ج.م</small>
@@ -157,7 +157,7 @@
                         else if (Model.CurrentBalance < 0)
                         {
                             <span class="badge bg-info text-dark fs-6 px-3 py-2">
-                                <i class="bi bi-arrow-down-left me-1"></i> رصيد لنا عند المورد (مدفوع مقدماً)
+                                <i class="bi bi-arrow-down-left me-1"></i> رصيد لنا لدى المورد (مدفوع مقدماً)
                             </span>
                         }
                         else
@@ -187,10 +187,10 @@
     <div class="card shadow-sm border-0">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h5 class="card-title mb-0 fw-bold text-dark">
-                <i class="bi bi-arrow-left-right text-primary me-1"></i> تسلسل حركات الحساب (الفواتير والمدفوعات)
+                <i class="bi bi-arrow-left-right text-primary me-1"></i> حركة الحساب (آخر الحركات)
             </h5>
             <a asp-action="Statement" asp-route-id="@Model.Id" asp-route-mode="detailed" class="btn btn-outline-primary btn-sm">
-                فتح الكشف التفصيلي الكامل <i class="bi bi-arrow-left ms-1"></i>
+                فتح كشف الحساب التفصيلي <i class="bi bi-arrow-left ms-1"></i>
             </a>
         </div>
         <div class="card-body p-0">
@@ -199,27 +199,31 @@
                     <thead class="table-light">
                         <tr>
                             <th>التاريخ</th>
-                            <th>العملية</th>
-                            <th class="text-start">تفاصيل الحركة</th>
+                            <th class="text-start">البيان</th>
                             <th>رقم المستند</th>
-                            <th>علينا (مشتريات +)</th>
-                            <th>المدفوع للمورد (-)</th>
-                            <th>المتبقي بعد الحركة</th>
+                            <th>إضافة للرصيد</th>
+                            <th>خصم من الرصيد</th>
+                            <th>الرصيد بعد الحركة</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var line in summary.Lines.TakeLast(15))
                         {
                             <tr>
-                                <td class="font-tabular">@line.Date.ToString("yyyy-MM-dd")</td>
-                                <td><span class="badge bg-light text-dark border">@line.DocumentType</span></td>
-                                <td class="text-start small">@(string.IsNullOrWhiteSpace(line.Description) ? line.DocumentType : line.Description)</td>
-                                <td class="font-monospace fw-bold">@line.DocumentNo</td>
-                                <td class="font-tabular @(line.Credit > 0 ? "text-danger fw-bold" : "text-muted")">@(line.Credit > 0 ? "+" + line.Credit.ToString("N2") : "-")</td>
-                                <td class="font-tabular @(line.Debit > 0 ? "text-success fw-bold" : "text-muted")">@(line.Debit > 0 ? "-" + line.Debit.ToString("N2") : "-")</td>
+                                <td class="font-tabular" dir="ltr">@StatementBuilder.FormatDate(line.Date)</td>
+                                <td class="text-start small">
+                                    <span class="fw-semibold text-dark">@StatementBuilder.ResolveShortTitle(line, StatementAccountType.Vendor)</span>
+                                    @if (!string.IsNullOrWhiteSpace(line.SummaryHint))
+                                    {
+                                        <span class="text-muted ms-1">— @line.SummaryHint</span>
+                                    }
+                                </td>
+                                <td class="font-monospace fw-bold" dir="ltr">@line.DocumentNo</td>
+                                <td class="font-tabular @(line.Credit > 0 ? "text-danger fw-bold" : "text-muted")">@(line.Credit > 0 ? StatementBuilder.FormatMoney(line.Credit) : "-")</td>
+                                <td class="font-tabular @(line.Debit > 0 ? "text-success fw-bold" : "text-muted")">@(line.Debit > 0 ? StatementBuilder.FormatMoney(line.Debit) : "-")</td>
                                 <td class="font-tabular fw-bold">
-                                    @Math.Abs(line.RunningBalance).ToString("N2")
-                                    <small class="text-muted fw-normal">@(Math.Abs(line.RunningBalance) < 0.005m ? "(خالص)" : (line.RunningBalance > 0 ? "(علينا)" : "(لنا)"))</small>
+                                    @StatementBuilder.FormatMoney(Math.Abs(line.RunningBalance))
+                                    <small class="text-muted fw-normal">@StatementBuilder.FormatBalanceTag(line.RunningBalance, isVendor: true)</small>
                                 </td>
                             </tr>
                         }

@@ -25,6 +25,7 @@ namespace BLL.DTOs.Invoice.OutGoingData
         public int ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public decimal Quantity { get; set; }
+        public string UnitLabel { get; set; } = string.Empty;
         public decimal UnitPrice { get; set; }
         public decimal LineDiscountAmount { get; set; }
         public decimal LineTotal { get; set; }
